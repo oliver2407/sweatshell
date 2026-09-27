@@ -1,0 +1,18 @@
+# python
+.venv/
+__pycache__/
+*.pyc
+
+# data: regenerate it, don't commit it
+*.db
+*.db-shm
+*.db-wal
+
+# node
+node_modules/
+dist/
+
+# editors / os
+.DS_Store
+.vscode/
+.idea/
