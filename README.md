@@ -66,8 +66,16 @@ gets watered is a toggle on the dashboard rather than a reflash.
 ### Two audiences, two sets of endpoints
 
 The app is for someone living with the product, checking it on their phone. It shows
-how much cooler the roof is, whether the sheet needs water, where the sheet is, and
-how to look after it. Nothing on that screen needs interpreting.
+how warm it is inside, whether the sheet needs water, where the sheet is and
+everything that moves it, and when it next needs a look at. Nothing on that screen
+needs interpreting.
+
+It does **not** show a with/without comparison. In a real home there is no second
+roof to compare against, and the honest version of that number needs about a week of
+baseline data — log indoor and outdoor temperature with the sheet rolled up, fit
+`indoor_max ≈ a + b × outdoor_max`, then compare measured against predicted (this is
+IPMVP Option C). Until that exists, a comparison line on a resident's screen would be
+a number nobody can stand behind.
 
 The bench endpoints still return everything — per-box readings, the energy chain, the
 assumptions behind it — for the team and for the CSV. They are simply not on the
@@ -77,14 +85,37 @@ for themselves.
 | Endpoint | Purpose |
 |---|---|
 | `GET /api/home` | **What the phone app shows.** Deliberately narrow |
-| `GET /api/home/series` | Two lines: the room with SweatShell, and without |
+| `GET /api/home/series` | Indoor temperature, plus whether the sheet was out at each point |
 | `POST /api/reading` | The ESP32 (or simulator) posts one sample |
 | `GET /api/pump/command` | Device asks whether to water; returns and clears the request |
 | `POST /api/pump` | Manual watering |
 | `GET /api/sheet/command` | Roller asks whether to move; returns and clears |
 | `POST /api/sheet?out=` | Roll the sheet out or up |
+| `PATCH /api/schedule` | Daily roll-out / roll-up times |
+| `PATCH /api/protect` | Wind threshold, and whether to act without asking |
+| `GET /api/forecast` | Forecast with its provenance: live, cache or sample |
+| `POST /api/maintenance/done` | Reset the upkeep countdown |
 | `GET /api/state` | Bench view: everything, in one call |
 | `GET /api/series` | Bench time series, thinned to 400 points |
+
+### What moves the sheet
+
+Three things, in the order a person reaches for them: **the buttons**, which always
+win; a **daily schedule**, because the sheet's useful moves are slow and predictable
+and a roof covering takes hours to change the temperature inside — reacting to an
+indoor thermometer would always be acting too late; and a **protective roll-up** from
+the forecast, because wind that could tear the sheet has to be acted on before it
+arrives and nothing on the roof can see it coming.
+
+The forecast comes from Open-Meteo (no API key). If it can't be reached, the app
+falls back to the last good forecast and then to a bundled sample, and it says on
+screen which one you are looking at. The default gust threshold of 40 km/h is a
+placeholder taken from retractable-awning practice — measure it against the actual
+fabric and fixings before trusting it.
+
+Protective roll-up **warns by default and does not act** unless the person turns that
+on. A forecast can be wrong, and an unexpected motor movement on someone's roof is
+not a good surprise.
 | `POST /api/session/start`, `POST /api/session/{id}/stop` | Named runs |
 | `GET /api/session/{id}/export.csv` | Raw data a judge can take away and check |
 | `POST /api/scale` | Projects the measured water cost onto a real roof |
@@ -155,10 +186,9 @@ firmware/   ESP32 sketch (Arduino).
 The app is built for a 390px screen and scales up from there, because people check
 this on a phone. Tap targets are at least 44px.
 
-The two chart series are fixed categorical slots — blue for the room with SweatShell,
-orange for the room without — chosen for colour-vision separation in both light and
-dark mode, with the name and value labelled at the end of each line so nobody has to
-match a colour to a legend. Don't re-order or re-tint them.
+The app chart is one series — the temperature inside — with the stretches when the
+sheet was rolled out shaded behind it in a tint of the same hue, so the band reads as
+context rather than as a second series. One measure, one y-axis.
 
 This build covers cooling only. There is no winter mode.
 

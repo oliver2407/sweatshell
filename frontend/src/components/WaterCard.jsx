@@ -11,8 +11,11 @@ import { fmt } from "../api.js";
  * its own — the percentage and the words say the same thing.
  */
 
-function mood(pct) {
-  if (pct == null) return { label: "No reading", tone: "var(--status-critical)" };
+function mood(pct, sheetOut, stale) {
+  if (stale || pct == null) return { label: "No reading", tone: "var(--status-critical)" };
+  // A full sheet that is rolled up is not cooling anything, and saying "Cooling"
+  // while the roller sits parked is the sort of small lie that costs trust.
+  if (!sheetOut) return { label: "Ready, but rolled up", tone: "var(--text-muted)" };
   if (pct >= 70) return { label: "Full", tone: "var(--status-good)" };
   if (pct >= 40) return { label: "Cooling", tone: "var(--status-good)" };
   if (pct >= 20) return { label: "Getting low", tone: "var(--status-warning)" };
@@ -21,7 +24,7 @@ function mood(pct) {
 
 export default function WaterCard({ home, busy, onWater, onAuto }) {
   const pct = home.water_pct;
-  const m = mood(pct);
+  const m = mood(pct, home.sheet_out, home.stale);
   const h = 104;
   const fill = ((pct ?? 0) / 100) * h;
   const wet = (pct ?? 0) > 40;

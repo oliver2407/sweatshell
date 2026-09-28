@@ -57,6 +57,22 @@ _conn.executescript(SCHEMA)
 _conn.commit()
 
 
+def _migrate() -> None:
+    """
+    Add columns to a database that already has data in it.
+
+    Deleting the file would be easier and would also throw away the only
+    measurements we have. Tiny, additive migrations instead.
+    """
+    cols = {r["name"] for r in _conn.execute("PRAGMA table_info(readings)")}
+    if "sheet_out" not in cols:
+        _conn.execute("ALTER TABLE readings ADD COLUMN sheet_out INTEGER")
+    _conn.commit()
+
+
+_migrate()
+
+
 def db() -> sqlite3.Connection:
     return _conn
 
@@ -73,11 +89,13 @@ def insert_reading(
     pump_on: bool,
     session_id: int | None,
     ts: float | None = None,
+    sheet_out: bool | None = None,
 ) -> int:
     cur = _conn.execute(
         """INSERT INTO readings
-           (ts, session_id, roof_json, inside_json, gel_mass_g, ambient_c, humidity, pump_on)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+           (ts, session_id, roof_json, inside_json, gel_mass_g, ambient_c, humidity,
+            pump_on, sheet_out)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             ts or time.time(),
             session_id,
@@ -87,6 +105,7 @@ def insert_reading(
             ambient_c,
             humidity,
             1 if pump_on else 0,
+            None if sheet_out is None else (1 if sheet_out else 0),
         ),
     )
     _conn.commit()
@@ -104,6 +123,7 @@ def _row_to_reading(row: sqlite3.Row) -> dict:
         "ambient_c": row["ambient_c"],
         "humidity": row["humidity"],
         "pump_on": bool(row["pump_on"]),
+        "sheet_out": None if row["sheet_out"] is None else bool(row["sheet_out"]),
     }
 
 

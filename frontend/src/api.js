@@ -28,6 +28,11 @@ export const api = {
   setAutoWater: (on) =>
     req("/api/config", { method: "PATCH", body: JSON.stringify({ auto_pump: on }) }),
   moveSheet: (out) => req(`/api/sheet?out=${out}`, { method: "POST" }),
+  setSchedule: (patch) =>
+    req("/api/schedule", { method: "PATCH", body: JSON.stringify(patch) }),
+  setProtect: (patch) =>
+    req("/api/protect", { method: "PATCH", body: JSON.stringify(patch) }),
+  serviced: () => req("/api/maintenance/done", { method: "POST" }),
 };
 
 export function fmt(n, digits = 1) {

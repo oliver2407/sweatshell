@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 
 import cooling
 import db
+import forecast
 
 app = FastAPI(title="SweatShell API", version="0.1.0")
 
@@ -54,6 +55,35 @@ _last_pump_at: float = 0.0
 _sheet_out: bool = True
 _sheet_request: str | None = None  # "out" | "up" | None
 
+# Daily schedule. The sheet's useful moves are slow and predictable — out in the
+# morning, up in the evening — so a clock beats a thermostat here. A roof covering
+# takes hours to change the temperature inside, which means reacting to an indoor
+# reading is always too late; being out before the sun arrives is what works.
+schedule = {
+    "enabled": False,
+    "roll_out_at": "08:00",
+    "roll_up_at": "19:00",
+}
+_schedule_fired: dict[str, str] = {}  # action -> the date it last fired
+
+# Protective auto roll-up, driven by the forecast rather than by a sensor. A wind
+# gust that could tear the sheet has to be acted on before it arrives, and nothing
+# on the roof can see it coming.
+protect = {
+    "enabled": True,
+    "auto": False,  # False = warn the person and let them press the button
+    "wind_gust_kmh": forecast.DEFAULT_WIND_GUST_KMH,
+}
+_protect_fired_for: str | None = None  # the forecast date we already acted on
+
+# Maintenance. The gel softens over months and wants one spray of the setting
+# solution to firm up again.
+maintenance = {
+    "installed_at": time.time(),
+    "last_service_at": time.time(),
+    "interval_days": 90,
+}
+
 # Guards against a noisy load cell hammering the pump.
 #
 # Hysteresis does the real work: once we have watered, we refuse to auto-water
@@ -69,6 +99,11 @@ PUMP_HYSTERESIS_PCT = 15.0
 # where 20 simulated minutes of drying pass in half a real second.
 PUMP_MIN_GAP_S = 0.5
 _pump_armed = True  # False after watering, re-arms once the gel is wet again
+
+# How long without a reading before we stop believing the last one. Pump and roller
+# flags in a stale reading are a frozen snapshot, and treating them as live leaves
+# the app stuck on "Watering…" with its buttons disabled.
+STALE_AFTER_S = 45.0
 
 
 class Reading(BaseModel):
@@ -174,6 +209,11 @@ def post_reading(reading: Reading):
     if reading.sheet_out is not None:
         _sheet_out = reading.sheet_out
 
+    # Incoming readings are the system's heartbeat, so the clock and the forecast get
+    # checked here rather than on a background thread. One less thing to keep alive.
+    tick_schedule()
+    tick_protect()
+
     db.insert_reading(
         roof=reading.roof,
         inside=reading.inside,
@@ -183,6 +223,7 @@ def post_reading(reading: Reading):
         pump_on=reading.pump_on,
         session_id=session_id,
         ts=reading.ts,
+        sheet_out=_sheet_out,
     )
 
     pct = water_percent(reading.gel_mass_g)
@@ -247,6 +288,61 @@ def request_pump(seconds: float | None = None):
     return {"ok": True, **_pump_request}
 
 
+def _queue_sheet(move: str, why: str) -> None:
+    global _sheet_request
+    _sheet_request = move
+    session = db.active_session()
+    db.log_event("sheet", why, session["id"] if session else None)
+
+
+def tick_schedule() -> None:
+    """
+    Fire the scheduled moves when the clock passes them.
+
+    Fires once per action per day, tracked by date, so a restart or a burst of
+    readings cannot make the motor run twice. If the app was off when the time
+    passed, the move still happens at the next reading — late is better than skipped
+    for "roll up at 7pm".
+    """
+    if not schedule["enabled"]:
+        return
+    now = time.localtime()
+    today = time.strftime("%Y-%m-%d", now)
+    hhmm = time.strftime("%H:%M", now)
+
+    for action, key, want_out in (
+        ("roll_out_at", "out", True),
+        ("roll_up_at", "up", False),
+    ):
+        at = schedule[action]
+        if hhmm >= at and _schedule_fired.get(key) != today:
+            _schedule_fired[key] = today
+            if _sheet_out != want_out:
+                _queue_sheet(key, f"Scheduled: rolling {key} at {at}")
+
+
+def tick_protect() -> None:
+    """
+    Roll the sheet up ahead of weather that could tear it.
+
+    Only acts on its own when the person has turned that on. Otherwise it warns and
+    waits: an unexpected motor movement on someone's roof is not a good surprise, and
+    a forecast can be wrong.
+    """
+    global _protect_fired_for
+    if not protect["enabled"] or not protect["auto"]:
+        return
+    warn = forecast.protect_warning(forecast.fetch(), protect["wind_gust_kmh"])
+    if not warn or _protect_fired_for == warn["date"]:
+        return
+    # Only act on the day itself, not five days early.
+    if warn["date"] != time.strftime("%Y-%m-%d", time.localtime()):
+        return
+    _protect_fired_for = warn["date"]
+    if _sheet_out:
+        _queue_sheet("up", f"Rolled up to protect the sheet — {warn['reason']}")
+
+
 @app.get("/api/sheet/command")
 def sheet_command():
     """The roller polls this. Returns the pending move and clears it."""
@@ -269,6 +365,35 @@ def move_sheet(out: bool):
     return {"ok": True, "move": _sheet_request}
 
 
+class SchedulePatch(BaseModel):
+    enabled: bool | None = None
+    roll_out_at: str | None = None
+    roll_up_at: str | None = None
+
+
+class ProtectPatch(BaseModel):
+    enabled: bool | None = None
+    auto: bool | None = None
+    wind_gust_kmh: float | None = None
+
+
+def maintenance_state() -> dict:
+    """Days in service, and how long until the gel wants its next spray."""
+    now = time.time()
+    day = 86400.0
+    due_at = maintenance["last_service_at"] + maintenance["interval_days"] * day
+    days_left = (due_at - now) / day
+    elapsed = maintenance["interval_days"] - days_left
+    return {
+        "days_in_service": int((now - maintenance["installed_at"]) / day),
+        "days_until_service": int(days_left),
+        "interval_days": maintenance["interval_days"],
+        "progress": max(0.0, min(1.0, elapsed / maintenance["interval_days"])),
+        "overdue": days_left < 0,
+        "task": "Spray the setting solution once to firm the gel up again.",
+    }
+
+
 @app.get("/api/home")
 def home():
     """
@@ -278,30 +403,41 @@ def home():
     energy chain, the assumptions behind it. A person checking their roof on the
     train does not need any of that, and every extra number on that screen is a
     question they have to answer for themselves. This endpoint returns what someone
-    living with the product needs to decide something: is it cooling, does it need
-    water, is the sheet out, is anything wrong.
+    living with the product needs to decide something: how warm is it inside, does
+    the sheet need water, where is the sheet, and is anything coming that they
+    should know about.
     """
     latest = db.latest_reading(resolve_scope(None))
     if not latest:
         return {"ready": False, "message": "Not connected to your roof yet."}
 
-    inside = latest["inside"]
-    # box1 is the same roof without SweatShell, box3 is the roof with it. The app
-    # calls them "without" and "with"; the box numbering is a bench detail.
-    without = inside.get("box1")
-    with_it = inside.get("box3")
-    cooler = (
-        round(without - with_it, 1)
-        if (without is not None and with_it is not None)
+    # If the roof stopped reporting, every "is the pump running" flag in that last
+    # reading is a frozen snapshot, not the truth. Saying so lets the app stop
+    # showing "Watering…" forever and stop disabling the buttons behind it.
+    age_s = time.time() - latest["ts"]
+    stale = age_s > STALE_AFTER_S
+
+    inside_c = latest["inside"].get("box3")
+    pct = water_percent(latest["gel_mass_g"])
+    scope = resolve_scope(None)
+    readings = db.session_readings(scope) if scope is not None else []
+    grams = grams_evaporated(readings)
+
+    fc = forecast.fetch()
+    warn = (
+        forecast.protect_warning(fc, protect["wind_gust_kmh"])
+        if protect["enabled"]
         else None
     )
 
-    pct = water_percent(latest["gel_mass_g"])
-    readings = db.session_readings(resolve_scope(None)) if resolve_scope(None) else []
-    grams = grams_evaporated(readings)
-
     # Plain-language health. One line, one action, never a stack trace.
-    if pct is None:
+    if stale:
+        status, advice = (
+            "unknown",
+            f"No reading for {int(age_s // 60)} minutes. Check the roof unit has "
+            "power and wifi.",
+        )
+    elif pct is None:
         status, advice = "unknown", "The roof sensor is not reporting. Check it is powered."
     elif not _sheet_out:
         status, advice = "parked", "The sheet is rolled up. Roll it out to start cooling."
@@ -315,39 +451,84 @@ def home():
     return {
         "ready": True,
         "ts": latest["ts"],
-        "cooler_by_c": cooler,
-        "inside_c": with_it,
+        "stale": stale,
+        "inside_c": inside_c,
+        "inside_humidity": latest["humidity"],
         "outside_c": latest["ambient_c"],
-        "roof_c": latest["roof"].get("box3"),
         "water_pct": pct,
+        "litres_used": round(grams / 1000.0, 1),
         "sheet_out": _sheet_out,
-        "pump_on": latest["pump_on"],
-        "pump_queued": _pump_request is not None,
+        "sheet_moving": _sheet_request is not None and not stale,
+        "pump_on": latest["pump_on"] and not stale,
+        "pump_queued": _pump_request is not None and not stale,
         "auto_water": config["auto_pump"],
         "status": status,
         "advice": advice,
-        "litres_used": round(grams / 1000.0, 1),
+        "schedule": schedule,
+        "protect": {
+            **protect,
+            "warning": warn,
+            "forecast_source": fc.get("source"),
+            "season_over": forecast.season_over(fc),
+        },
+        "maintenance": maintenance_state(),
     }
 
 
 @app.get("/api/home/series")
-def home_series(max_points: int = 120):
+def home_series(max_points: int = 160):
     """
-    Two lines for the phone chart: the room with SweatShell, and the same room
-    without it. Four boxes is a bench comparison; two is a before-and-after.
+    One line for the phone chart — the temperature inside — plus whether the sheet
+    was out at each point, so the chart can shade the stretches when it was in use.
+
+    The bench comparison lives on /api/series. Here a second line would only raise a
+    question the screen is not there to answer.
     """
-    readings = db.session_readings(resolve_scope(None)) if resolve_scope(None) else []
+    scope = resolve_scope(None)
+    readings = db.session_readings(scope) if scope is not None else []
     if len(readings) > max_points:
         step = len(readings) // max_points + 1
         readings = readings[::step]
     return [
         {
             "ts": r["ts"],
-            "with_sweatshell": r["inside"].get("box3"),
-            "without": r["inside"].get("box1"),
+            "inside_c": r["inside"].get("box3"),
+            "sheet_out": r["sheet_out"],
         }
         for r in readings
     ]
+
+
+@app.get("/api/forecast")
+def get_forecast():
+    return forecast.fetch()
+
+
+@app.patch("/api/schedule")
+def patch_schedule(p: SchedulePatch):
+    for k, v in p.model_dump(exclude_none=True).items():
+        schedule[k] = v
+    db.log_event(
+        "schedule",
+        f"Schedule updated: out {schedule['roll_out_at']}, up {schedule['roll_up_at']}, "
+        f"{'on' if schedule['enabled'] else 'off'}",
+    )
+    return schedule
+
+
+@app.patch("/api/protect")
+def patch_protect(p: ProtectPatch):
+    for k, v in p.model_dump(exclude_none=True).items():
+        protect[k] = v
+    return protect
+
+
+@app.post("/api/maintenance/done")
+def maintenance_done():
+    """The person has just serviced the sheet. Reset the countdown."""
+    maintenance["last_service_at"] = time.time()
+    db.log_event("maintenance", "Sheet serviced — countdown reset")
+    return maintenance_state()
 
 
 def resolve_scope(session_id: int | None) -> int | None:

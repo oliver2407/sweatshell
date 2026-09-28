@@ -274,6 +274,103 @@ button.icon {
   transform: translateX(21px);
 }
 
+/* --- sub-sections inside a card --------------------------------------- */
+
+.sub {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--gridline);
+}
+
+.sub-note {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 10px 0 0;
+}
+
+.tiny {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 8px 0 0;
+}
+
+.times {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+label.field {
+  display: block;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+label.field input {
+  display: block;
+  font: inherit;
+  font-size: 16px;
+  min-height: 48px;
+  margin-top: 6px;
+  padding: 10px 12px;
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--page);
+  color: var(--text-primary);
+}
+
+.notice {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--page);
+  border: 1px solid var(--border);
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.notice strong {
+  color: var(--text-primary);
+}
+
+/* --- chart key -------------------------------------------------------- */
+
+.key {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.keyband {
+  width: 22px;
+  height: 13px;
+  border-radius: 3px;
+  background: var(--series-1);
+  opacity: 0.22;
+  flex: none;
+}
+
+/* --- progress bar ----------------------------------------------------- */
+
+.bar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--gridline);
+  overflow: hidden;
+  margin-top: 14px;
+}
+
+.barfill {
+  height: 100%;
+  border-radius: 999px;
+}
+
 /* --- care list -------------------------------------------------------- */
 
 .care {

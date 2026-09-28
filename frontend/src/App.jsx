@@ -1,19 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, clockOf } from "./api.js";
-import StatusCard from "./components/StatusCard.jsx";
+import IndoorCard from "./components/IndoorCard.jsx";
 import WaterCard from "./components/WaterCard.jsx";
 import SheetCard from "./components/SheetCard.jsx";
-import TodayChart from "./components/TodayChart.jsx";
+import InsideChart from "./components/InsideChart.jsx";
+import MaintenanceCard from "./components/MaintenanceCard.jsx";
 import CareCard from "./components/CareCard.jsx";
 
 /*
  * One screen, built for a phone.
  *
- * The order is the order someone actually wants it: is it working, does it need
- * water, where is the sheet, how has today gone, how do I look after it. Nothing on
- * this screen asks the reader to interpret anything — the bench numbers, the energy
- * chain and the experiment controls stay on the backend, where the team can still
- * get at them.
+ * How warm it is inside, how much water is left, where the sheet is and everything
+ * that moves it, the temperature over time with the in-use stretches shaded, and
+ * when the sheet next needs a look at. Nothing here asks the reader to interpret
+ * anything — the bench numbers stay on the backend where the team can still get at
+ * them.
  */
 
 const POLL_MS = 3000;
@@ -84,7 +85,10 @@ export default function App() {
 
       {offline && (
         <div className="warnbar">
-          <span className="dot" style={{ background: "var(--status-critical)", marginTop: 0 }} />
+          <span
+            className="dot"
+            style={{ background: "var(--status-critical)", marginTop: 0 }}
+          />
           Can’t reach your roof. Showing the last reading.
         </div>
       )}
@@ -96,7 +100,7 @@ export default function App() {
         </div>
       ) : (
         <>
-          <StatusCard home={home} />
+          <IndoorCard home={home} />
           <WaterCard
             home={home}
             busy={busy}
@@ -107,8 +111,15 @@ export default function App() {
             home={home}
             busy={busy}
             onMove={(out) => act(() => api.moveSheet(out))}
+            onSchedule={(patch) => act(() => api.setSchedule(patch))}
+            onProtect={(patch) => act(() => api.setProtect(patch))}
           />
-          <TodayChart series={series} />
+          <InsideChart series={series} />
+          <MaintenanceCard
+            m={home.maintenance}
+            busy={busy}
+            onDone={() => act(() => api.serviced())}
+          />
           <CareCard />
           <p className="foot">Updated {clockOf(home.ts)}</p>
         </>

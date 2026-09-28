@@ -1,12 +1,12 @@
 import { fmt } from "../api.js";
 
 /*
- * The answer to "why did I open this app".
+ * Inside the house.
  *
- * One number, one sentence about what to do. Everything that explains HOW the number
- * was reached — the energy chain, the assumptions, the control box — lives on the
- * bench, not here. A person checking their roof wants to know whether it is working
- * and whether they need to do anything.
+ * The comparison against an uncovered roof is gone from this screen. In a real home
+ * there is no second roof to compare against, and the honest version of that number
+ * needs a week of baseline data before it means anything. What a person can act on
+ * is the temperature they are actually living in.
  */
 
 const TONE = {
@@ -17,25 +17,22 @@ const TONE = {
   unknown: "var(--status-critical)",
 };
 
-export default function StatusCard({ home }) {
-  const cooler = home.cooler_by_c;
-
+export default function IndoorCard({ home }) {
   return (
     <div className="card">
-      <h2>Your roof right now</h2>
+      <h2>Inside your home</h2>
 
       <div className="big">
-        {cooler == null ? "—" : fmt(cooler, 1)}
-        <span className="unit">°C cooler</span>
+        {fmt(home.inside_c, 0)}
+        <span className="unit">°C</span>
       </div>
-      <div className="said">than the same roof without SweatShell</div>
 
       <div className="pair">
         <div>
-          <div className="k">Inside</div>
+          <div className="k">Humidity inside</div>
           <div className="v">
-            {fmt(home.inside_c, 0)}
-            <span className="unit">°C</span>
+            {fmt(home.inside_humidity, 0)}
+            <span className="unit">%</span>
           </div>
         </div>
         <div>
