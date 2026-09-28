@@ -186,6 +186,13 @@ firmware/   ESP32 sketch (Arduino).
 The app is built for a 390px screen and scales up from there, because people check
 this on a phone. Tap targets are at least 44px.
 
+It is a two-column grid even at phone width. Anything with a date on it goes at the
+top, because an alert three cards down is a log entry rather than a warning. Below
+that sit the two numbers people open the app for — how warm it is inside, and how
+much water is left — side by side, so the first screenful answers the daily question
+without a scroll. Settings are folded away: they get set once and then forgotten, so
+they do not belong between a person and their daily glance.
+
 The app chart is one series — the temperature inside — with the stretches when the
 sheet was rolled out shaded behind it in a tint of the same hue, so the band reads as
 context rather than as a second series. One measure, one y-axis.

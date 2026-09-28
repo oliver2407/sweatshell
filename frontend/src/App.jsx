@@ -1,20 +1,22 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, clockOf } from "./api.js";
-import IndoorCard from "./components/IndoorCard.jsx";
+import Alerts from "./components/Alerts.jsx";
+import { IndoorTile, AdviceBar } from "./components/IndoorCard.jsx";
 import WaterCard from "./components/WaterCard.jsx";
 import SheetCard from "./components/SheetCard.jsx";
+import AutomaticCard from "./components/AutomaticCard.jsx";
 import InsideChart from "./components/InsideChart.jsx";
 import MaintenanceCard from "./components/MaintenanceCard.jsx";
 import CareCard from "./components/CareCard.jsx";
 
 /*
- * One screen, built for a phone.
+ * One screen, built for a phone, in the order things matter.
  *
- * How warm it is inside, how much water is left, where the sheet is and everything
- * that moves it, the temperature over time with the in-use stretches shaded, and
- * when the sheet next needs a look at. Nothing here asks the reader to interpret
- * anything — the bench numbers stay on the backend where the team can still get at
- * them.
+ * Anything dated goes first, because an alert three cards down is a log entry. Then
+ * the two numbers people open the app for, side by side so the first screenful
+ * answers "how warm is it and does it need water" without a scroll. Then the sheet
+ * and the one button that moves it. Settings are folded away — they are set once and
+ * forgotten, so they do not belong between a person and their daily glance.
  */
 
 const POLL_MS = 3000;
@@ -83,15 +85,7 @@ export default function App() {
         </button>
       </header>
 
-      {offline && (
-        <div className="warnbar">
-          <span
-            className="dot"
-            style={{ background: "var(--status-critical)", marginTop: 0 }}
-          />
-          Can’t reach your roof. Showing the last reading.
-        </div>
-      )}
+      <Alerts home={home.ready ? home : null} offline={offline} />
 
       {!home.ready ? (
         <div className="card">
@@ -100,21 +94,22 @@ export default function App() {
         </div>
       ) : (
         <>
-          <IndoorCard home={home} />
-          <WaterCard
-            home={home}
-            busy={busy}
-            onWater={() => act(() => api.water())}
-            onAuto={(on) => act(() => api.setAutoWater(on))}
-          />
+          <IndoorTile home={home} />
+          <WaterCard home={home} busy={busy} onWater={() => act(() => api.water())} />
+          <AdviceBar home={home} />
           <SheetCard
             home={home}
             busy={busy}
             onMove={(out) => act(() => api.moveSheet(out))}
+          />
+          <InsideChart series={series} />
+          <AutomaticCard
+            home={home}
+            busy={busy}
+            onAuto={(on) => act(() => api.setAutoWater(on))}
             onSchedule={(patch) => act(() => api.setSchedule(patch))}
             onProtect={(patch) => act(() => api.setProtect(patch))}
           />
-          <InsideChart series={series} />
           <MaintenanceCard
             m={home.maintenance}
             busy={busy}

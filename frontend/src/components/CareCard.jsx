@@ -1,9 +1,12 @@
 /*
- * Care.
+ * Care, folded away.
+ *
+ * Reference material, not glance material: read once when the sheet goes up, then
+ * looked up when something seems wrong. It sits closed so it costs nothing on the
+ * way past, and it replaces a manual nobody keeps.
  *
  * Straight from how the sheet is actually made and maintained, in the words someone
- * who owns one would use. Four lines, no chemistry. This is the part of the app that
- * replaces a manual nobody keeps.
+ * who owns one would use. No chemistry.
  */
 
 const RULES = [
@@ -15,8 +18,8 @@ const RULES = [
 
 export default function CareCard() {
   return (
-    <div className="card">
-      <h2>Looking after it</h2>
+    <details className="card fold">
+      <summary>Looking after it</summary>
       <ul className="care">
         {RULES.map((r) => (
           <li key={r}>
@@ -25,6 +28,6 @@ export default function CareCard() {
           </li>
         ))}
       </ul>
-    </div>
+    </details>
   );
 }

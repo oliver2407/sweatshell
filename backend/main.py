@@ -462,6 +462,7 @@ def home():
         "pump_on": latest["pump_on"] and not stale,
         "pump_queued": _pump_request is not None and not stale,
         "auto_water": config["auto_pump"],
+        "water_threshold_pct": config["pump_threshold_pct"],
         "status": status,
         "advice": advice,
         "schedule": schedule,

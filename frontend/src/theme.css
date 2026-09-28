@@ -82,12 +82,57 @@ h2 {
   letter-spacing: -0.01em;
 }
 
+/*
+ * Two columns, even on a phone.
+ *
+ * The screen used to be one tall stack and reading it meant scrolling past the two
+ * numbers you opened the app for. Now the glance numbers sit side by side at the top
+ * and everything else spans the full width underneath, so the first screenful
+ * answers "how warm is it and does it need water" without a scroll.
+ */
 .app {
   max-width: 460px;
   margin: 0 auto;
   padding: 20px 16px 48px;
   display: grid;
-  gap: 14px;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+/* Full width unless a card opts into a half. */
+.app > * {
+  grid-column: 1 / -1;
+}
+
+/* Two tiles sharing a row stretch to the taller of the pair, so the row reads as
+   one band rather than two cards that happened to land side by side. */
+.app > .half {
+  grid-column: span 1;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Anything after the stat body sinks to the bottom, which lines the two cards'
+   buttons up with each other. */
+.app > .half > .btn-row {
+  margin-top: auto;
+  padding-top: 14px;
+}
+
+@media (min-width: 760px) {
+  .app {
+    max-width: 880px;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+  .app > .half {
+    grid-column: span 2;
+  }
+  .app > .wide-half {
+    grid-column: span 2;
+  }
 }
 
 .head {
@@ -120,18 +165,18 @@ h2 {
 /* --- the one number that matters ------------------------------------- */
 
 .big {
-  font-size: 68px;
+  font-size: 52px;
   line-height: 0.95;
   font-weight: 700;
   letter-spacing: -0.035em;
 }
 
 .big .unit {
-  font-size: 0.3em;
+  font-size: 0.34em;
   font-weight: 600;
   color: var(--text-secondary);
   letter-spacing: 0;
-  margin-left: 5px;
+  margin-left: 4px;
 }
 
 .said {
@@ -140,14 +185,31 @@ h2 {
   margin-top: 8px;
 }
 
+/* A stat tile: label, one big number, one word of state. Nothing else. */
+.stat .sub-line {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 6px;
+}
+
+.stat .state {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
 .status-line {
   display: flex;
   align-items: flex-start;
   gap: 9px;
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--gridline);
   font-size: 15px;
+}
+
+.status-line .dot {
+  margin-top: 6px;
 }
 
 .dot {
@@ -210,6 +272,17 @@ button.btn:disabled {
   opacity: 0.45;
 }
 
+button.btn.small {
+  font-size: 14px;
+  min-height: 44px;
+  padding: 10px 14px;
+}
+
+button.btn.auto-w {
+  width: auto;
+  flex: none;
+}
+
 button.icon {
   font: inherit;
   font-size: 14px;
@@ -229,17 +302,41 @@ button.icon {
   margin-top: 14px;
 }
 
+/* --- sheet row: state on the left, its one button on the right -------- */
+
+.sheet-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.notice-card {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  padding: 14px 16px;
+}
+
+.notice-card strong {
+  color: var(--text-primary);
+}
+
+.muted-line {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
 /* --- toggle ----------------------------------------------------------- */
 
 .toggle {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 14px;
   min-height: 48px;
-  margin-top: 12px;
   font-size: 15px;
-  color: var(--text-secondary);
+  color: var(--text-primary);
+  line-height: 1.35;
 }
 
 .switch {
@@ -274,12 +371,62 @@ button.icon {
   transform: translateX(21px);
 }
 
+/* --- collapsible section ---------------------------------------------- */
+
+details.fold > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 24px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+details.fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.fold > summary::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--text-muted);
+  border-bottom: 2px solid var(--text-muted);
+  transform: rotate(45deg) translate(-2px, -2px);
+  transition: transform 0.15s;
+  flex: none;
+}
+
+details.fold[open] > summary::after {
+  transform: rotate(-135deg) translate(-2px, -2px);
+}
+
+details.fold > summary .hint {
+  margin-left: auto;
+  margin-right: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-muted);
+}
+
 /* --- sub-sections inside a card --------------------------------------- */
 
 .sub {
-  margin-top: 16px;
-  padding-top: 14px;
+  margin-top: 4px;
+  padding-top: 12px;
   border-top: 1px solid var(--gridline);
+}
+
+details.fold > .sub:first-of-type {
+  margin-top: 12px;
 }
 
 .sub-note {
