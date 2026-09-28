@@ -52,6 +52,7 @@ class Rig:
         self.cloth_wet = True
         self.pump_on = False
         self.pump_until = 0.0
+        self.sheet_out = True
 
     def step(self, dt: float) -> None:
         self.t += dt
@@ -65,8 +66,10 @@ class Rig:
             eff = target
 
             # A dry pad stops sweating, so box3 drifts back toward the coat-only case.
+            # A sheet rolled up off the roof does nothing at all, which is the point
+            # of showing the roll control in the app rather than hiding it.
             if box == "box3":
-                dryness = 1.0 - (water_pct / 100.0)
+                dryness = 1.0 if not self.sheet_out else 1.0 - (water_pct / 100.0)
                 eff = target + (ROOF_TARGET["box2"] - target) * dryness
             # The cloth dries faster than the gel: that is the gel's whole selling point.
             if box == "box4" and not self.cloth_wet:
@@ -120,6 +123,7 @@ class Rig:
             "ambient_c": round(self.ambient, 2),
             "humidity": round(self.humidity, 1),
             "pump_on": self.pump_on,
+            "sheet_out": self.sheet_out,
             "ts": ts,
         }
 
@@ -171,6 +175,11 @@ def main() -> None:
                     secs = cmd.get("seconds", 5)
                     rig.water(secs)
                     print(f"  pump {secs}s -> gel back to {rig.water_pct():.0f}%")
+
+                move = client.get("/api/sheet/command").json().get("move")
+                if move:
+                    rig.sheet_out = move == "out"
+                    print(f"  sheet rolled {'out' if rig.sheet_out else 'up'}")
 
                 print(
                     f"t+{rig.t/60:6.1f}m  "

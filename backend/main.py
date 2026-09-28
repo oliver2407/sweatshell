@@ -48,6 +48,12 @@ config = {
 _pump_request: dict | None = None
 _last_pump_at: float = 0.0
 
+# The sheet is on a motorised roller. Same pattern as the pump: the app sets a
+# request, the device polls and clears it, and the device reports back what it
+# actually did. The app never assumes the motor obeyed.
+_sheet_out: bool = True
+_sheet_request: str | None = None  # "out" | "up" | None
+
 # Guards against a noisy load cell hammering the pump.
 #
 # Hysteresis does the real work: once we have watered, we refuse to auto-water
@@ -74,6 +80,7 @@ class Reading(BaseModel):
     ambient_c: float | None = None
     humidity: float | None = None
     pump_on: bool = False
+    sheet_out: bool | None = None  # what the roller actually did, not what we asked
     ts: float | None = None  # lets the simulator and buffered uploads backdate
 
 
@@ -159,10 +166,13 @@ def patch_config(patch: ConfigPatch):
 
 @app.post("/api/reading")
 def post_reading(reading: Reading):
-    global _pump_request, _last_pump_at, _pump_armed
+    global _pump_request, _last_pump_at, _pump_armed, _sheet_out
 
     session = db.active_session()
     session_id = session["id"] if session else None
+
+    if reading.sheet_out is not None:
+        _sheet_out = reading.sheet_out
 
     db.insert_reading(
         roof=reading.roof,
@@ -235,6 +245,109 @@ def request_pump(seconds: float | None = None):
         session["id"] if session else None,
     )
     return {"ok": True, **_pump_request}
+
+
+@app.get("/api/sheet/command")
+def sheet_command():
+    """The roller polls this. Returns the pending move and clears it."""
+    global _sheet_request
+    cmd = _sheet_request
+    _sheet_request = None
+    return {"move": cmd}
+
+
+@app.post("/api/sheet")
+def move_sheet(out: bool):
+    global _sheet_request
+    _sheet_request = "out" if out else "up"
+    session = db.active_session()
+    db.log_event(
+        "sheet",
+        "Rolling the sheet out" if out else "Rolling the sheet up",
+        session["id"] if session else None,
+    )
+    return {"ok": True, "move": _sheet_request}
+
+
+@app.get("/api/home")
+def home():
+    """
+    What the phone app shows. Deliberately narrow.
+
+    /api/state exists for the bench and returns everything: per-box readings, the
+    energy chain, the assumptions behind it. A person checking their roof on the
+    train does not need any of that, and every extra number on that screen is a
+    question they have to answer for themselves. This endpoint returns what someone
+    living with the product needs to decide something: is it cooling, does it need
+    water, is the sheet out, is anything wrong.
+    """
+    latest = db.latest_reading(resolve_scope(None))
+    if not latest:
+        return {"ready": False, "message": "Not connected to your roof yet."}
+
+    inside = latest["inside"]
+    # box1 is the same roof without SweatShell, box3 is the roof with it. The app
+    # calls them "without" and "with"; the box numbering is a bench detail.
+    without = inside.get("box1")
+    with_it = inside.get("box3")
+    cooler = (
+        round(without - with_it, 1)
+        if (without is not None and with_it is not None)
+        else None
+    )
+
+    pct = water_percent(latest["gel_mass_g"])
+    readings = db.session_readings(resolve_scope(None)) if resolve_scope(None) else []
+    grams = grams_evaporated(readings)
+
+    # Plain-language health. One line, one action, never a stack trace.
+    if pct is None:
+        status, advice = "unknown", "The roof sensor is not reporting. Check it is powered."
+    elif not _sheet_out:
+        status, advice = "parked", "The sheet is rolled up. Roll it out to start cooling."
+    elif pct < 20:
+        status, advice = "dry", "The sheet is dry and has stopped cooling. Water it now."
+    elif pct < 40:
+        status, advice = "low", "Running low. It will water itself shortly."
+    else:
+        status, advice = "good", "Cooling normally. Nothing to do."
+
+    return {
+        "ready": True,
+        "ts": latest["ts"],
+        "cooler_by_c": cooler,
+        "inside_c": with_it,
+        "outside_c": latest["ambient_c"],
+        "roof_c": latest["roof"].get("box3"),
+        "water_pct": pct,
+        "sheet_out": _sheet_out,
+        "pump_on": latest["pump_on"],
+        "pump_queued": _pump_request is not None,
+        "auto_water": config["auto_pump"],
+        "status": status,
+        "advice": advice,
+        "litres_used": round(grams / 1000.0, 1),
+    }
+
+
+@app.get("/api/home/series")
+def home_series(max_points: int = 120):
+    """
+    Two lines for the phone chart: the room with SweatShell, and the same room
+    without it. Four boxes is a bench comparison; two is a before-and-after.
+    """
+    readings = db.session_readings(resolve_scope(None)) if resolve_scope(None) else []
+    if len(readings) > max_points:
+        step = len(readings) // max_points + 1
+        readings = readings[::step]
+    return [
+        {
+            "ts": r["ts"],
+            "with_sweatshell": r["inside"].get("box3"),
+            "without": r["inside"].get("box1"),
+        }
+        for r in readings
+    ]
 
 
 def resolve_scope(session_id: int | None) -> int | None:

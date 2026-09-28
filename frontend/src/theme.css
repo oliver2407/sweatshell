@@ -1,18 +1,14 @@
 /*
- * Design tokens.
+ * Design tokens, phone first.
  *
- * The four series colours are categorical slots 1-4 in fixed order (box1..box4).
- * They were validated with the data-viz palette validator on the *adjacent*
- * pairlist, which is the right pairlist for line charts:
+ * Two chart series only: "With SweatShell" takes categorical slot 1 (blue) and
+ * "Without" takes slot 2 (orange). Fixed slot order, and blue happens to land on
+ * the cooler line, which is the right way round. Both slots clear 3:1 against the
+ * chart surface in light and dark, and two series from the leading slots are well
+ * inside the colour-vision separation floors. Don't re-tint them.
  *
- *   light #2a78d6,#eb6834,#1baf7a,#eda100 — worst adjacent CVD dE 9.1, normal 22.9, PASS
- *   dark  #3987e5,#d95926,#199e70,#c98500 — worst adjacent CVD dE 8.4, normal 19.8, PASS
- *
- * Two light-mode slots sit under 3:1 contrast on the light surface (#1baf7a 2.74,
- * #eda100 2.11). That triggers the relief rule, which is why every chart here
- * ships visible direct labels at the line ends AND a table view. Do not remove
- * either one, and do not re-step these hexes: the order is the colourblind-safety
- * mechanism, not decoration.
+ * Every tap target is at least 44px tall. This screen gets used one-handed, often
+ * outdoors, often in sunlight.
  */
 
 :root {
@@ -26,17 +22,12 @@
   --gridline: #e1e0d9;
   --baseline: #c3c2b7;
   --border: rgba(11, 11, 11, 0.1);
-  --success-text: #006300;
 
-  --series-1: #2a78d6; /* box1 bare metal */
-  --series-2: #eb6834; /* box2 eggshell coat */
-  --series-3: #1baf7a; /* box3 eggshell + bio gel */
-  --series-4: #eda100; /* box4 eggshell + wet cloth */
+  --series-1: #2a78d6; /* with SweatShell */
+  --series-2: #eb6834; /* without */
 
-  /* Status palette is fixed in both modes and never reused as a series colour. */
   --status-good: #0ca30c;
   --status-warning: #fab219;
-  --status-serious: #ec835a;
   --status-critical: #d03b3b;
 }
 
@@ -51,12 +42,8 @@
     --gridline: #2c2c2a;
     --baseline: #383835;
     --border: rgba(255, 255, 255, 0.1);
-    --success-text: #0ca30c;
-
     --series-1: #3987e5;
     --series-2: #d95926;
-    --series-3: #199e70;
-    --series-4: #c98500;
   }
 }
 
@@ -70,16 +57,13 @@
   --gridline: #2c2c2a;
   --baseline: #383835;
   --border: rgba(255, 255, 255, 0.1);
-  --success-text: #0ca30c;
-
   --series-1: #3987e5;
   --series-2: #d95926;
-  --series-3: #199e70;
-  --series-4: #c98500;
 }
 
 * {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
@@ -87,210 +71,133 @@ body {
   background: var(--page);
   color: var(--text-primary);
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.5;
 }
 
 h1,
-h2,
-h3 {
+h2 {
   margin: 0;
   font-weight: 650;
   letter-spacing: -0.01em;
 }
 
-.wrap {
-  max-width: 1120px;
+.app {
+  max-width: 460px;
   margin: 0 auto;
-  padding: 24px 16px 64px;
+  padding: 20px 16px 48px;
+  display: grid;
+  gap: 14px;
 }
 
-.topbar {
+.head {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 12px;
-  margin-bottom: 20px;
+  align-items: center;
+  gap: 10px;
 }
 
-.topbar h1 {
-  font-size: 22px;
-}
-
-.topbar .sub {
-  color: var(--text-secondary);
-  font-size: 14px;
-}
-
-.spacer {
+.head h1 {
+  font-size: 19px;
   flex: 1;
 }
 
 .card {
   background: var(--surface-1);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 16px;
+  border-radius: 16px;
+  padding: 18px;
 }
 
-.card > h2 {
-  font-size: 14px;
-  color: var(--text-secondary);
+.card h2 {
+  font-size: 13px;
   font-weight: 600;
+  color: var(--text-secondary);
   margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
-.grid {
-  display: grid;
-  gap: 16px;
-  margin-bottom: 16px;
-  /* Cards size to their own content; a tall column must not stretch a short card
-     into a panel of empty space. */
-  align-items: start;
-}
+/* --- the one number that matters ------------------------------------- */
 
-.grid.cols-2 {
-  grid-template-columns: 1fr 1fr;
-}
-
-.grid.cols-3 {
-  grid-template-columns: repeat(3, 1fr);
-}
-
-.grid.hero-row {
-  grid-template-columns: 1.35fr 1fr;
-}
-
-.grid.chart-row {
-  grid-template-columns: 1fr 300px;
-}
-
-@media (max-width: 880px) {
-  .grid.cols-2,
-  .grid.cols-3,
-  .grid.hero-row,
-  .grid.chart-row {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* --- hero figure ------------------------------------------------------ */
-
-.hero-figure {
-  font-size: clamp(52px, 9vw, 84px);
-  line-height: 1;
+.big {
+  font-size: 68px;
+  line-height: 0.95;
   font-weight: 700;
-  letter-spacing: -0.03em;
-  color: var(--text-primary);
+  letter-spacing: -0.035em;
 }
 
-.hero-figure .unit {
-  font-size: 0.4em;
+.big .unit {
+  font-size: 0.3em;
   font-weight: 600;
   color: var(--text-secondary);
-  margin-left: 4px;
+  letter-spacing: 0;
+  margin-left: 5px;
 }
 
-.hero-caption {
+.said {
+  font-size: 15px;
   color: var(--text-secondary);
-  font-size: 14px;
-  margin-top: 6px;
+  margin-top: 8px;
 }
 
-/* --- stat tiles ------------------------------------------------------- */
-
-.tiles {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
-  gap: 12px;
-}
-
-.tile {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 10px 12px;
-}
-
-.tile .label {
-  font-size: 12px;
-  color: var(--text-secondary);
+.status-line {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--gridline);
+  font-size: 15px;
 }
 
-.tile .value {
-  font-size: 26px;
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  flex: none;
+  margin-top: 7px;
+}
+
+/* --- side-by-side readings -------------------------------------------- */
+
+.pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.pair .k {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.pair .v {
+  font-size: 27px;
   font-weight: 650;
   letter-spacing: -0.02em;
 }
 
-.tile .value .unit {
-  font-size: 13px;
+.pair .v .unit {
+  font-size: 15px;
+  color: var(--text-secondary);
   font-weight: 600;
-  color: var(--text-secondary);
-  margin-left: 3px;
-}
-
-.tile .foot {
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-.swatch {
-  width: 10px;
-  height: 10px;
-  border-radius: 3px;
-  flex: none;
-}
-
-/* --- legend ----------------------------------------------------------- */
-
-.legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  margin-bottom: 10px;
-}
-
-.legend button {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  background: none;
-  border: none;
-  padding: 2px 0;
-  font: inherit;
-  font-size: 13px;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-
-.legend button[aria-pressed="false"] {
-  opacity: 0.4;
 }
 
 /* --- buttons ---------------------------------------------------------- */
 
 button.btn {
   font: inherit;
-  font-size: 13px;
-  font-weight: 550;
-  padding: 7px 13px;
-  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  min-height: 48px;
+  padding: 12px 18px;
+  width: 100%;
+  border-radius: 12px;
   border: 1px solid var(--border);
   background: var(--surface-1);
   color: var(--text-primary);
   cursor: pointer;
-}
-
-button.btn:hover:not(:disabled) {
-  border-color: var(--baseline);
-}
-
-button.btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
 }
 
 button.btn.primary {
@@ -299,125 +206,114 @@ button.btn.primary {
   color: #fff;
 }
 
-.row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
+button.btn:disabled {
+  opacity: 0.45;
 }
 
-input[type="text"],
-input[type="number"] {
+button.icon {
   font: inherit;
-  font-size: 13px;
-  padding: 6px 9px;
-  border-radius: 8px;
+  font-size: 14px;
+  min-height: 40px;
+  padding: 8px 14px;
+  width: auto;
+  border-radius: 10px;
   border: 1px solid var(--border);
-  background: var(--page);
-  color: var(--text-primary);
-  width: 100%;
-}
-
-label.field {
-  display: block;
-  font-size: 12px;
+  background: var(--surface-1);
   color: var(--text-secondary);
-  margin-bottom: 8px;
+  cursor: pointer;
 }
 
-/* --- table view (the relief obligation) ------------------------------- */
-
-table.data {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
+.btn-row {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
 }
 
-table.data th {
-  text-align: left;
-  font-weight: 600;
+/* --- toggle ----------------------------------------------------------- */
+
+.toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  margin-top: 12px;
+  font-size: 15px;
   color: var(--text-secondary);
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--baseline);
-  white-space: nowrap;
 }
 
-table.data td {
-  padding: 5px 8px;
-  border-bottom: 1px solid var(--gridline);
-  color: var(--text-primary);
+.switch {
+  position: relative;
+  width: 52px;
+  height: 31px;
+  border-radius: 999px;
+  border: none;
+  background: var(--baseline);
+  cursor: pointer;
+  flex: none;
+  transition: background 0.15s;
 }
 
-table.data tbody tr:last-child td {
-  border-bottom: none;
+.switch[aria-checked="true"] {
+  background: var(--status-good);
 }
 
-/* --- event log -------------------------------------------------------- */
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 25px;
+  height: 25px;
+  border-radius: 999px;
+  background: #fff;
+  transition: transform 0.15s;
+}
 
-.events {
+.switch[aria-checked="true"]::after {
+  transform: translateX(21px);
+}
+
+/* --- care list -------------------------------------------------------- */
+
+.care {
   list-style: none;
   margin: 0;
   padding: 0;
-  max-height: 260px;
-  overflow-y: auto;
-  font-size: 13px;
+  font-size: 15px;
 }
 
-.events li {
+.care li {
   display: flex;
-  gap: 8px;
-  padding: 6px 0;
+  gap: 10px;
+  padding: 10px 0;
   border-bottom: 1px solid var(--gridline);
+  color: var(--text-secondary);
 }
 
-.events li:last-child {
+.care li:last-child {
   border-bottom: none;
+  padding-bottom: 0;
 }
 
-.events .when {
+.care .mark {
+  flex: none;
   color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-  flex: none;
 }
 
-.events .what {
-  color: var(--text-secondary);
-}
-
-/* --- misc ------------------------------------------------------------- */
-
-.note {
+.foot {
   font-size: 13px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
+  text-align: center;
 }
 
-.pill {
-  display: inline-flex;
+.warnbar {
+  display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 550;
-  padding: 3px 9px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
-}
-
-.dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  flex: none;
-}
-
-ul.plain {
-  margin: 0;
-  padding-left: 18px;
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
-ul.plain li {
-  margin-bottom: 5px;
+  gap: 9px;
+  padding: 11px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--status-critical);
+  color: var(--status-critical);
+  font-size: 14px;
 }

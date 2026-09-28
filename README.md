@@ -63,15 +63,28 @@ a dropped poll is 2 seconds of staleness. There is no broker to babysit.
 The device holds no logic. Thresholds live in the backend, so changing when the gel
 gets watered is a toggle on the dashboard rather than a reflash.
 
-### API
+### Two audiences, two sets of endpoints
+
+The app is for someone living with the product, checking it on their phone. It shows
+how much cooler the roof is, whether the sheet needs water, where the sheet is, and
+how to look after it. Nothing on that screen needs interpreting.
+
+The bench endpoints still return everything — per-box readings, the energy chain, the
+assumptions behind it — for the team and for the CSV. They are simply not on the
+resident's screen, because every extra number there is a question they have to answer
+for themselves.
 
 | Endpoint | Purpose |
 |---|---|
+| `GET /api/home` | **What the phone app shows.** Deliberately narrow |
+| `GET /api/home/series` | Two lines: the room with SweatShell, and without |
 | `POST /api/reading` | The ESP32 (or simulator) posts one sample |
 | `GET /api/pump/command` | Device asks whether to water; returns and clears the request |
-| `POST /api/pump` | Manual watering from the dashboard |
-| `GET /api/state` | Everything the dashboard needs, in one call |
-| `GET /api/series` | Time series for the chart, thinned to 400 points |
+| `POST /api/pump` | Manual watering |
+| `GET /api/sheet/command` | Roller asks whether to move; returns and clears |
+| `POST /api/sheet?out=` | Roll the sheet out or up |
+| `GET /api/state` | Bench view: everything, in one call |
+| `GET /api/series` | Bench time series, thinned to 400 points |
 | `POST /api/session/start`, `POST /api/session/{id}/stop` | Named runs |
 | `GET /api/session/{id}/export.csv` | Raw data a judge can take away and check |
 | `POST /api/scale` | Projects the measured water cost onto a real roof |
@@ -135,15 +148,19 @@ projection is arithmetic on a guess.
 
 ```
 backend/    FastAPI + SQLite. cooling.py holds every physics constant.
-frontend/   Vite + React dashboard. No chart library; the SVG is hand-drawn.
+frontend/   Vite + React app, phone first. No chart library; the SVG is hand-drawn.
 firmware/   ESP32 sketch (Arduino).
 ```
 
-The four series colours are fixed categorical slots, validated for colour-vision
-deficiency on the adjacent pairlist in both light and dark mode. Two of the light
-slots sit under 3:1 contrast, which is why the chart ships direct labels at the line
-ends *and* a table view. Don't re-order or re-tint them; the order is the safety
-mechanism.
+The app is built for a 390px screen and scales up from there, because people check
+this on a phone. Tap targets are at least 44px.
+
+The two chart series are fixed categorical slots — blue for the room with SweatShell,
+orange for the room without — chosen for colour-vision separation in both light and
+dark mode, with the name and value labelled at the end of each line so nobody has to
+match a colour to a legend. Don't re-order or re-tint them.
+
+This build covers cooling only. There is no winter mode.
 
 ## Safety
 

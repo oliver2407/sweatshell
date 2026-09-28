@@ -1,8 +1,13 @@
 /*
- * API client.
+ * API client for the phone app.
  *
- * Polling, not WebSockets. On venue wifi a dropped socket is a dead dashboard;
- * a dropped poll just means the next one is 2 seconds away.
+ * Only two endpoints. /api/home returns what a person living with the product needs
+ * to decide something; the bench endpoints exist on the backend but nothing here
+ * asks for them, because every extra number on this screen is one the user has to
+ * make sense of on their own.
+ *
+ * Polling, not sockets. A dropped poll is two seconds of staleness; a dropped socket
+ * on patchy mobile data is a dead screen.
  */
 
 const BASE = import.meta.env.VITE_API_BASE ?? "";
@@ -17,38 +22,12 @@ async function req(path, options = {}) {
 }
 
 export const api = {
-  state: (sessionId) =>
-    req(`/api/state${sessionId ? `?session_id=${sessionId}` : ""}`),
-  series: (sessionId) =>
-    req(`/api/series${sessionId ? `?session_id=${sessionId}` : ""}`),
-  sessions: () => req("/api/sessions"),
-  startSession: (label) =>
-    req("/api/session/start", { method: "POST", body: JSON.stringify({ label }) }),
-  stopSession: (id) => req(`/api/session/${id}/stop`, { method: "POST" }),
-  pump: (seconds) =>
-    req(`/api/pump${seconds ? `?seconds=${seconds}` : ""}`, { method: "POST" }),
-  patchConfig: (patch) =>
-    req("/api/config", { method: "PATCH", body: JSON.stringify(patch) }),
-  scale: (q) => req("/api/scale", { method: "POST", body: JSON.stringify(q) }),
-  exportUrl: (id) => `${BASE}/api/session/${id}/export.csv`,
-};
-
-/** Box order is fixed and matches categorical palette slots 1..4. Never reorder. */
-export const BOX_KEYS = ["box1", "box2", "box3", "box4"];
-
-export const SERIES_VAR = {
-  box1: "var(--series-1)",
-  box2: "var(--series-2)",
-  box3: "var(--series-3)",
-  box4: "var(--series-4)",
-};
-
-/** Short labels for chart ends and table headers; the long names live in /api/config. */
-export const SHORT_LABEL = {
-  box1: "Bare metal",
-  box2: "Coat only",
-  box3: "SweatShell",
-  box4: "Wet cloth",
+  home: () => req("/api/home"),
+  series: () => req("/api/home/series"),
+  water: () => req("/api/pump", { method: "POST" }),
+  setAutoWater: (on) =>
+    req("/api/config", { method: "PATCH", body: JSON.stringify({ auto_pump: on }) }),
+  moveSheet: (out) => req(`/api/sheet?out=${out}`, { method: "POST" }),
 };
 
 export function fmt(n, digits = 1) {
@@ -58,8 +37,7 @@ export function fmt(n, digits = 1) {
 
 export function clockOf(ts) {
   return new Date(ts * 1000).toLocaleTimeString([], {
-    hour: "2-digit",
+    hour: "numeric",
     minute: "2-digit",
-    second: "2-digit",
   });
 }
