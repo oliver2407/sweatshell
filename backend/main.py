@@ -74,7 +74,7 @@ protect = {
     "auto": False,  # False = warn the person and let them press the button
     "wind_gust_kmh": forecast.DEFAULT_WIND_GUST_KMH,
 }
-_protect_fired_for: str | None = None  # the forecast date we already acted on
+_protect_fired_for: float | None = None  # start of the risk window we acted on
 
 # Maintenance. The gel softens over months and wants one spray of the setting
 # solution to firm up again.
@@ -317,8 +317,23 @@ def tick_schedule() -> None:
         at = schedule[action]
         if hhmm >= at and _schedule_fired.get(key) != today:
             _schedule_fired[key] = today
-            if _sheet_out != want_out:
-                _queue_sheet(key, f"Scheduled: rolling {key} at {at}")
+            if _sheet_out == want_out:
+                continue
+            # The clock does not know a storm is coming. When the person has turned
+            # on rolling up in rough weather, the schedule must not undo it by
+            # rolling out into the same storm. With it off, the forecast only warns
+            # and never changes what the sheet does.
+            risk = (
+                forecast.in_risk(forecast.fetch(), protect["wind_gust_kmh"])
+                if want_out and protect["enabled"] and protect["auto"]
+                else None
+            )
+            if risk:
+                db.log_event(
+                    "schedule", f"Scheduled roll-out skipped — {risk['reason']}"
+                )
+                continue
+            _queue_sheet(key, f"Scheduled: rolling {key} at {at}")
 
 
 def tick_protect() -> None:
@@ -332,15 +347,16 @@ def tick_protect() -> None:
     global _protect_fired_for
     if not protect["enabled"] or not protect["auto"]:
         return
-    warn = forecast.protect_warning(forecast.fetch(), protect["wind_gust_kmh"])
-    if not warn or _protect_fired_for == warn["date"]:
+    # Act from a couple of hours before the weather, not from midnight that day: a
+    # gust at 4pm is no reason to give up a morning of cooling.
+    risk = forecast.in_risk(forecast.fetch(), protect["wind_gust_kmh"])
+    if not risk or _protect_fired_for == risk["start"]:
         return
-    # Only act on the day itself, not five days early.
-    if warn["date"] != time.strftime("%Y-%m-%d", time.localtime()):
-        return
-    _protect_fired_for = warn["date"]
+    # Once per window, so a person who rolls it back out on purpose is not overruled
+    # on every reading.
+    _protect_fired_for = risk["start"]
     if _sheet_out:
-        _queue_sheet("up", f"Rolled up to protect the sheet — {warn['reason']}")
+        _queue_sheet("up", f"Rolled up to protect the sheet — {risk['reason']}")
 
 
 @app.get("/api/sheet/command")
@@ -377,8 +393,11 @@ class ProtectPatch(BaseModel):
     wind_gust_kmh: float | None = None
 
 
-def maintenance_state() -> dict:
-    """Days in service, and how long until the gel wants its next spray."""
+def maintenance_state(fc: dict | None = None) -> dict:
+    """
+    Days in service, how long until the gel wants its next spray, and once that is
+    close, the first dry, calm day in the forecast to do it on.
+    """
     now = time.time()
     day = 86400.0
     due_at = maintenance["last_service_at"] + maintenance["interval_days"] * day
@@ -391,6 +410,7 @@ def maintenance_state() -> dict:
         "progress": max(0.0, min(1.0, elapsed / maintenance["interval_days"])),
         "overdue": days_left < 0,
         "task": "Spray the setting solution once to firm the gel up again.",
+        "good_day": forecast.service_day(fc, days_left) if fc else None,
     }
 
 
@@ -472,7 +492,7 @@ def home():
             "forecast_source": fc.get("source"),
             "season_over": forecast.season_over(fc),
         },
-        "maintenance": maintenance_state(),
+        "maintenance": maintenance_state(fc),
     }
 
 
@@ -502,7 +522,9 @@ def home_series(max_points: int = 160):
 
 @app.get("/api/forecast")
 def get_forecast():
-    return forecast.fetch()
+    """The forecast with its provenance, and every risk window it implies."""
+    fc = forecast.fetch()
+    return {**fc, "risks": forecast.risk_windows(fc, protect["wind_gust_kmh"])}
 
 
 @app.patch("/api/schedule")
@@ -529,7 +551,7 @@ def maintenance_done():
     """The person has just serviced the sheet. Reset the countdown."""
     maintenance["last_service_at"] = time.time()
     db.log_event("maintenance", "Sheet serviced — countdown reset")
-    return maintenance_state()
+    return maintenance_state(forecast.fetch())
 
 
 def resolve_scope(session_id: int | None) -> int | None:

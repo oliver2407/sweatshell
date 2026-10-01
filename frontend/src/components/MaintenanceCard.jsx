@@ -3,7 +3,8 @@
  *
  * The gel softens over months and wants one spray of the setting solution to firm up
  * again. That is the kind of job nobody remembers and nobody has the manual for, so
- * the app carries it.
+ * the app carries it. Once it is close to due, the forecast picks a dry, calm day
+ * for it, because the solution washes off in rain and a roof is no place in a gale.
  *
  * Laid out as a row rather than a tile: the number and its button belong on one
  * line, and stacking them in a narrow column made the task text wrap four times.
@@ -27,6 +28,13 @@ export default function MaintenanceCard({ m, busy, onDone }) {
           </div>
           <div style={{ fontSize: 13.5, color: "var(--text-muted)", marginTop: 2 }}>
             {m.task}
+            {m.good_day && (
+              <>
+                {" "}
+                Good day for it: <strong>{formatDay(m.good_day.date)}</strong> (
+                {m.good_day.reason.toLowerCase()}).
+              </>
+            )}
           </div>
         </div>
 
@@ -46,4 +54,9 @@ export default function MaintenanceCard({ m, busy, onDone }) {
       </div>
     </div>
   );
+}
+
+function formatDay(iso) {
+  const d = new Date(iso + "T00:00:00");
+  return d.toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" });
 }

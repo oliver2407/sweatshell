@@ -50,6 +50,14 @@ python simulate.py --fast --session "Gel 3mm vs wet cloth"
 minutes. If the simulator works end to end, the firmware only has to produce the
 same JSON.
 
+Tests (the one that calls Open-Meteo skips itself when offline):
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+pytest
+```
+
 ## How the pieces fit
 
 ```
@@ -107,7 +115,20 @@ indoor thermometer would always be acting too late; and a **protective roll-up**
 the forecast, because wind that could tear the sheet has to be acted on before it
 arrives and nothing on the roof can see it coming.
 
-The forecast comes from Open-Meteo (no API key). If it can't be reached, the app
+The forecast comes from Open-Meteo (no API key): hourly gusts and weather codes for
+a week, daily figures for sixteen days. Decisions are made per hour, not per day.
+Melbourne gusts pass 40 km/h on most spring days, usually for a few afternoon hours,
+so the daily maximum would keep the sheet up almost permanently. Instead the backend
+finds each risky stretch (gusts over the threshold, thunderstorms, hail), merges
+stretches less than three hours apart, and asks for the sheet up two hours before
+and back out no sooner than an hour after. The daily schedule will not roll the sheet
+out inside one of those windows, but only while rough-weather roll-up is turned
+on; with it off, the forecast warns and never moves the sheet.
+
+The same forecast suggests packing up for the year (a mild week, in autumn only) and
+picks a dry, calm day for upkeep once it is due within a fortnight.
+
+If Open-Meteo can't be reached, the app
 falls back to the last good forecast and then to a bundled sample, and it says on
 screen which one you are looking at. The default gust threshold of 40 km/h is a
 placeholder taken from retractable-awning practice — measure it against the actual
