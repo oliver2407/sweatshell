@@ -33,7 +33,9 @@ def win(**kw):
         "enabled": True,
         "out_at": "08:00",
         "up_at": "19:00",
+        "repeat": "weekly",
         "days": [0, 1, 2, 3, 4, 5, 6],
+        "dates": [1],
         "from": None,
         "to": None,
         "label": "",
@@ -111,6 +113,29 @@ main._sheet_request = None
 main._sheet_out = False
 main.tick_schedule()
 check("schedule does not undo it", main._sheet_request, None)
+
+print("\nrepeat: daily")
+set_windows(win(repeat="daily", days=[]))
+check("ignores the weekday list", main.desired_sheet_state(at(SAT, "12:00")), True)
+
+print("\nrepeat: monthly")
+# 2026-10-01 is a Thursday, 2026-10-15 a Thursday.
+set_windows(win(repeat="monthly", dates=[1, 15], days=[]))
+check("on the 1st", main.desired_sheet_state(at("2026-10-01", "12:00")), True)
+check("on the 15th", main.desired_sheet_state(at("2026-10-15", "12:00")), True)
+check("on the 2nd, no opinion", main.desired_sheet_state(at("2026-10-02", "12:00")), None)
+
+# A 31st does not come round in November. Skipping is what calendars do; sliding it
+# to the 30th would move a schedule the person never moved.
+set_windows(win(repeat="monthly", dates=[31], days=[]))
+check("31st exists in October", main.desired_sheet_state(at("2026-10-31", "12:00")), True)
+check(
+    "and is skipped in November",
+    main.desired_sheet_state(at("2026-11-30", "12:00")),
+    None,
+)
+nxt = main.next_change(at("2026-11-01", "12:00"))
+check("next monthly run is found past a short month", nxt is not None, True)
 
 print("\nnext change, which is what the Auto button promises")
 set_windows(win(out_at="08:00", up_at="19:00"))

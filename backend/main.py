@@ -8,6 +8,7 @@ WebSockets, no MQTT, no broker to babysit at a hackathon.
 import csv
 import io
 import time
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -89,7 +90,13 @@ def _window(wid: int, out_at: str, up_at: str, label: str) -> dict:
         "enabled": True,
         "out_at": out_at,
         "up_at": up_at,
+        # How it repeats: "daily" every day, "weekly" on the chosen weekdays,
+        # "monthly" on the chosen dates. Both lists are kept whichever mode is
+        # active, so switching between weekly and monthly and back does not lose
+        # what was picked.
+        "repeat": "weekly",
         "days": [0, 1, 2, 3, 4, 5, 6],
+        "dates": [1],
         "from": None,
         "to": None,
         "label": label,
@@ -107,10 +114,12 @@ def _load_schedule() -> dict:
     """
     stored = db.load_setting("schedule", {})
 
-    if stored.get("windows"):
-        stored.pop("roll_out_at", None)
-        stored.pop("roll_up_at", None)
-        return {"enabled": stored.get("enabled", False), "windows": stored["windows"]}
+    # An empty list is a real state — someone deleted their last one — and must not
+    # be mistaken for "nothing stored", or a restart silently puts a window back
+    # that the person went to the trouble of removing.
+    if isinstance(stored.get("windows"), list):
+        windows = [{**_window(w["id"], "08:00", "19:00", ""), **w} for w in stored["windows"]]
+        return {"enabled": stored.get("enabled", False), "windows": windows}
 
     if stored.get("roll_out_at") or stored.get("roll_up_at"):
         migrated = {
@@ -383,8 +392,19 @@ def window_applies_today(w: dict, now: time.struct_time) -> bool:
     """Does this window run on today's date at all?"""
     if not w.get("enabled", True):
         return False
-    if now.tm_wday not in w.get("days", [0, 1, 2, 3, 4, 5, 6]):
-        return False
+
+    repeat = w.get("repeat", "weekly")
+    if repeat == "weekly":
+        if now.tm_wday not in w.get("days", [0, 1, 2, 3, 4, 5, 6]):
+            return False
+    elif repeat == "monthly":
+        # A date of 31 simply does not come round in a 30-day month. Skipping is
+        # what calendars do, and quietly sliding it to the 30th would move a
+        # schedule the person did not move.
+        if now.tm_mday not in w.get("dates", []):
+            return False
+    # "daily" runs every day, so there is nothing to check.
+
     today = time.strftime("%Y-%m-%d", now)
     # A window can be given a start and an end date, which is how "just for this
     # month" or "only over summer" is expressed without anyone having to remember
@@ -534,7 +554,9 @@ class WindowPatch(BaseModel):
     enabled: bool | None = None
     out_at: str | None = None  # "HH:MM", 24-hour
     up_at: str | None = None
+    repeat: Literal["daily", "weekly", "monthly"] | None = None
     days: list[int] | None = None  # 0 = Monday
+    dates: list[int] | None = None  # 1..31
     label: str | None = None
     # Explicit nulls have to be distinguishable from "not sent" here, because
     # clearing an end date is a thing someone does. Sending "" means clear.
@@ -717,13 +739,25 @@ def next_change(now: time.struct_time | None = None) -> dict | None:
     reasoning about which window wins, so overlapping windows cannot trip it up.
     """
     now = now or time.localtime()
-    current = desired_sheet_state(now)
-    if current is None:
+    if not schedule.get("enabled"):
         return None
+
+    # current may be None — today might have no window at all — and that is still a
+    # day with a next move coming. Giving up here used to hide the whole of a
+    # monthly schedule from the app on every day except the one it ran.
+    current = desired_sheet_state(now)
 
     start = time.mktime(now)
     candidates: list[float] = []
-    for day_offset in range(8):
+    # A weekly window comes round within a week. A monthly one on the 31st can be
+    # much further: from 1 November the next 31st is 60 days away, because November
+    # has no 31st to land on. 70 covers the worst case and costs nothing to walk.
+    horizon = (
+        70
+        if any(w.get("repeat") == "monthly" for w in schedule.get("windows", []))
+        else 8
+    )
+    for day_offset in range(horizon):
         day = time.localtime(start + day_offset * 86400)
         for w in schedule.get("windows", []):
             if not window_applies_today(w, day):
@@ -745,12 +779,15 @@ def next_change(now: time.struct_time | None = None) -> dict | None:
         after = time.localtime(t + 60)
         state = desired_sheet_state(after)
         if state is not None and state != current:
+            when = time.localtime(t)
             return {
-                "at": time.strftime("%H:%M", time.localtime(t)),
+                "at": time.strftime("%H:%M", when),
+                "date": time.strftime("%Y-%m-%d", when),
                 "epoch": t,
                 "to": "out" if state else "up",
-                "today": time.strftime("%Y-%m-%d", time.localtime(t))
+                "today": time.strftime("%Y-%m-%d", when)
                 == time.strftime("%Y-%m-%d", now),
+                "days_away": int((t - time.mktime(now)) // 86400),
             }
     return None
 

@@ -28,9 +28,21 @@ function modeSentence(home) {
   }
 
   const next = home.schedule.next_change;
-  if (!next) return "On a schedule, but no window covers today.";
+  if (!next) return "On a schedule, but nothing is set to run.";
 
-  const when = `${hhmmTo12(next.at)}${next.today ? "" : " tomorrow"}`;
+  // A monthly time can be weeks out, so "tomorrow" is not a safe stand-in for
+  // "not today" — past that, name the day.
+  const day =
+    next.days_away === 0
+      ? ""
+      : next.days_away === 1
+        ? " tomorrow"
+        : ` on ${new Date(next.date + "T00:00:00").toLocaleDateString([], {
+            weekday: "short",
+            day: "numeric",
+            month: "short",
+          })}`;
+  const when = `${hhmmTo12(next.at)}${day}`;
   const verb = next.to === "out" ? "rolling out" : "rolling up";
 
   // After a manual move, the sheet is not where the schedule wants it. Saying so is

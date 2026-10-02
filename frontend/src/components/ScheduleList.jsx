@@ -1,21 +1,30 @@
 import { useEffect, useState } from "react";
 
 /*
- * The schedule: a list of windows rather than one pair of times.
+ * When the sheet rolls: a list of times, each with its own repeat rule.
  *
- * A day is not one shape. A west-facing roof wants the sheet out for the afternoon
- * only, someone home at lunch wants a gap in the middle, and a shoulder-season week
- * wants it out three days in five. Each row here is one window with its own days and
- * an optional end date, so "every afternoon until the end of October" is one row and
- * not a reminder in someone's phone.
+ * Shaped like the recurrence editor in a calendar app, because that is the pattern
+ * people already know and because a roof genuinely has more than one rhythm. A
+ * west-facing roof wants the afternoon only; someone home at lunch wants a gap;
+ * "the first of every month" is how a rental inspection gets scheduled.
  *
- * Each row states what it does in a sentence under the times, because "06:45–20:15,
- * Mon Tue Wed" is a specification and "Out at 6:45 am, up at 8:15 pm, weekdays" is
- * an answer.
+ * Three repeat modes and no more. Every day, chosen weekdays, chosen dates. "Every
+ * third Tuesday" is a calendar feature, not a roof feature, and each extra option
+ * is one more thing on screen that has to be read before anything can be set.
+ *
+ * Called a "time" rather than a "window" on screen. This is an app about a house,
+ * and a window is a thing a house already has.
  */
 
 const DAY_LETTERS = ["M", "T", "W", "T", "F", "S", "S"];
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+// One word each. "Days of week" wrapped to two lines once it was the selected,
+// bolder one, which made the control taller the moment it was used.
+const REPEATS = [
+  { id: "daily", label: "Daily" },
+  { id: "weekly", label: "Weekly" },
+  { id: "monthly", label: "Monthly" },
+];
 
 function hhmmTo12(hhmm) {
   const [h, m] = hhmm.split(":").map(Number);
@@ -24,12 +33,27 @@ function hhmmTo12(hhmm) {
   return m === 0 ? `${h12} ${suffix}` : `${h12}:${String(m).padStart(2, "0")} ${suffix}`;
 }
 
-function daysPhrase(days) {
+function ordinal(n) {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+function repeatPhrase(w) {
+  if (w.repeat === "daily") return "every day";
+  if (w.repeat === "monthly") {
+    const d = (w.dates ?? []).slice().sort((a, b) => a - b);
+    if (d.length === 0) return "no dates picked";
+    if (d.length === 1) return `the ${ordinal(d[0])} of each month`;
+    const last = d[d.length - 1];
+    return `the ${d.slice(0, -1).map(ordinal).join(", ")} and ${ordinal(last)} of each month`;
+  }
+  const days = w.days ?? [];
   if (days.length === 7) return "every day";
+  if (days.length === 0) return "no days picked";
   if (days.length === 5 && [0, 1, 2, 3, 4].every((d) => days.includes(d)))
     return "weekdays";
   if (days.length === 2 && days.includes(5) && days.includes(6)) return "weekends";
-  if (days.length === 0) return "no days selected";
   return days
     .slice()
     .sort((a, b) => a - b)
@@ -42,18 +66,18 @@ function describe(w) {
   return (
     `Out at ${hhmmTo12(w.out_at)}, up at ${hhmmTo12(w.up_at)}` +
     (overnight ? " the next morning" : "") +
-    `, ${daysPhrase(w.days)}.`
+    `, ${repeatPhrase(w)}.`
   );
 }
 
-function dateRangePhrase(w) {
-  if (w.from && w.to) return `From ${w.from} to ${w.to}`;
+function rangePhrase(w) {
+  if (w.from && w.to) return `${w.from} to ${w.to}`;
   if (w.from) return `From ${w.from}`;
   if (w.to) return `Until ${w.to}`;
-  return null;
+  return "Runs all year";
 }
 
-function Window({ w, active, busy, onPatch, onDelete }) {
+function Entry({ w, active, busy, onPatch, onDelete }) {
   const [outAt, setOutAt] = useState(w.out_at);
   const [upAt, setUpAt] = useState(w.up_at);
   const [open, setOpen] = useState(false);
@@ -61,11 +85,13 @@ function Window({ w, active, busy, onPatch, onDelete }) {
   useEffect(() => setOutAt(w.out_at), [w.out_at]);
   useEffect(() => setUpAt(w.up_at), [w.up_at]);
 
-  function toggleDay(d) {
-    const days = w.days.includes(d)
-      ? w.days.filter((x) => x !== d)
-      : [...w.days, d].sort((a, b) => a - b);
-    onPatch({ days });
+  const repeat = w.repeat ?? "weekly";
+
+  function toggleIn(list, value, field) {
+    const next = list.includes(value)
+      ? list.filter((x) => x !== value)
+      : [...list, value].sort((a, b) => a - b);
+    onPatch({ [field]: next });
   }
 
   return (
@@ -94,26 +120,65 @@ function Window({ w, active, busy, onPatch, onDelete }) {
           className="switch sm"
           role="switch"
           aria-checked={w.enabled}
-          aria-label="Use this window"
+          aria-label="Use this time"
           disabled={busy}
           onClick={() => onPatch({ enabled: !w.enabled })}
         />
       </div>
 
-      <div className="days">
-        {DAY_LETTERS.map((letter, d) => (
+      <div className="seg" role="group" aria-label="Repeat">
+        {REPEATS.map((r) => (
           <button
-            key={d}
-            className="day"
-            aria-pressed={w.days.includes(d)}
-            aria-label={DAY_NAMES[d]}
+            key={r.id}
+            className="seg-btn"
+            aria-pressed={repeat === r.id}
             disabled={busy}
-            onClick={() => toggleDay(d)}
+            onClick={() => onPatch({ repeat: r.id })}
           >
-            {letter}
+            {r.label}
           </button>
         ))}
       </div>
+
+      {repeat === "weekly" && (
+        <div className="days">
+          {DAY_LETTERS.map((letter, d) => (
+            <button
+              key={d}
+              className="day"
+              aria-pressed={(w.days ?? []).includes(d)}
+              aria-label={DAY_NAMES[d]}
+              disabled={busy}
+              onClick={() => toggleIn(w.days ?? [], d, "days")}
+            >
+              {letter}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {repeat === "monthly" && (
+        <>
+          <div className="dates">
+            {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+              <button
+                key={d}
+                className="day"
+                aria-pressed={(w.dates ?? []).includes(d)}
+                disabled={busy}
+                onClick={() => toggleIn(w.dates ?? [], d, "dates")}
+              >
+                {d}
+              </button>
+            ))}
+          </div>
+          {(w.dates ?? []).some((d) => d > 28) && (
+            <p className="win-says">
+              A month without that date is skipped, not moved to the day before.
+            </p>
+          )}
+        </>
+      )}
 
       <p className="win-says">
         {describe(w)}
@@ -121,36 +186,35 @@ function Window({ w, active, busy, onPatch, onDelete }) {
       </p>
 
       <button className="link" onClick={() => setOpen(!open)}>
-        {dateRangePhrase(w) ?? "Runs all year"}
+        {rangePhrase(w)}
       </button>
 
       {open && (
-        <div className="times">
-          <label>
-            Start date
-            <input
-              type="date"
-              value={w.from ?? ""}
-              disabled={busy}
-              onChange={(e) => onPatch({ date_from: e.target.value })}
-            />
-          </label>
-          <label>
-            End date
-            <input
-              type="date"
-              value={w.to ?? ""}
-              disabled={busy}
-              onChange={(e) => onPatch({ date_to: e.target.value })}
-            />
-          </label>
-        </div>
-      )}
-
-      {open && (
-        <button className="link danger" disabled={busy} onClick={onDelete}>
-          Remove this window
-        </button>
+        <>
+          <div className="times">
+            <label>
+              Start date
+              <input
+                type="date"
+                value={w.from ?? ""}
+                disabled={busy}
+                onChange={(e) => onPatch({ date_from: e.target.value })}
+              />
+            </label>
+            <label>
+              End date
+              <input
+                type="date"
+                value={w.to ?? ""}
+                disabled={busy}
+                onChange={(e) => onPatch({ date_to: e.target.value })}
+              />
+            </label>
+          </div>
+          <button className="link danger" disabled={busy} onClick={onDelete}>
+            Remove this time
+          </button>
+        </>
       )}
     </div>
   );
@@ -162,7 +226,7 @@ export default function ScheduleList({ schedule, busy, onPatch, onAdd, onDelete 
   return (
     <>
       {windows.map((w) => (
-        <Window
+        <Entry
           key={w.id}
           w={w}
           active={schedule.active_window_id === w.id}
@@ -173,14 +237,14 @@ export default function ScheduleList({ schedule, busy, onPatch, onAdd, onDelete 
       ))}
 
       {windows.length === 0 && (
-        <p className="win-says" style={{ padding: "4px 0 10px" }}>
-          No windows yet. Add one and the sheet will move on its own.
+        <p className="win-says" style={{ padding: "12px 0 0" }}>
+          Nothing set yet. Add a time and the sheet will move on its own.
         </p>
       )}
 
       <div className="win-group-end">
         <button className="mini wide" disabled={busy} onClick={onAdd}>
-          Add a window
+          Add a time
         </button>
       </div>
     </>

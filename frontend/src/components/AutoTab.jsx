@@ -52,7 +52,7 @@ export default function AutoTab({
             <div className="lead">Roll on a schedule</div>
             <div className="note">
               {s.enabled
-                ? `${(s.windows ?? []).filter((w) => w.enabled).length} window${
+                ? `${(s.windows ?? []).filter((w) => w.enabled).length} time${
                     (s.windows ?? []).filter((w) => w.enabled).length === 1 ? "" : "s"
                   } set`
                 : "Set the hours the sheet should be out"}
