@@ -99,12 +99,24 @@ The device prints its address on the serial monitor at boot. Open it in a browse
 first — the firmware serves its own control page there, and if that page does not
 load the problem is wifi, not this backend.
 
-The default is already the rig's address, so a fresh install connects on its own.
-To point it somewhere else:
+The address is editable in the app, under **Automatic → Connection** (it sits in the
+open, next to the reason, whenever the unit is not answering). A bare
+`172.20.10.2` is fine — the scheme is filled in.
+
+If the address is unknown, go and find it rather than guessing:
+
+```bash
+cd backend && .venv/bin/python find_device.py --set
+```
+
+It knocks on every address on the subnets this machine is already on and reports
+which one answers with a reading. `--set` points the backend at it.
+
+The same change over HTTP, if the app is not up:
 
 ```bash
 curl -X PATCH localhost:8000/api/bridge -H 'Content-Type: application/json' \
-  -d '{"enabled":true,"url":"http://172.20.10.10"}'
+  -d '{"enabled":true,"url":"http://172.20.10.2"}'
 ```
 
 `GET /api/bridge` says whether it is working. `connected` means the last poll
@@ -114,6 +126,11 @@ exception.
 **Both machines have to be on the same wifi.** `172.20.10.x` is an iPhone
 personal-hotspot subnet: the roof unit joins the hotspot, and a laptop that quietly
 rejoined the house network is the most common way this looks broken when nothing is.
+
+**The laptop is on that subnet too.** The phone is `172.20.10.1` and hands out `.2`
+upward to everything that joins, laptop included — so an address read off the
+laptop's own network settings looks exactly like the unit's and will never answer.
+The unit's address comes from its serial output, or from `find_device.py`.
 
 ### Testing it without the hardware
 
