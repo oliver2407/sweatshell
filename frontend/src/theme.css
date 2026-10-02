@@ -791,32 +791,39 @@ body {
 }
 
 /*
- * Desktop: one dashboard, no navigation.
+ * Desktop: one screen, three columns, nothing spare.
  *
- * Four tabs on a screen with room for four columns is a phone habit. The only
- * reason to hide three quarters of a control panel is that there is nowhere to put
- * it, and on a laptop there is. So the tab bar goes away entirely and every section
- * is on screen at once.
+ * The page does not scroll. The shell is exactly the height of the window and the
+ * two side columns scroll inside themselves, so the temperature never leaves the
+ * screen however long someone's schedule gets. A dashboard you have to scroll to
+ * read is a page wearing a dashboard's clothes.
  *
- * The dial keeps the open field to itself in the first column so it stays what the
- * eye lands on; everything supporting it sits in panels to the right. Two columns
- * from 900px, three from 1280px — the schedule editor needs about 360px before its
- * time inputs and day chips start fighting, and that is what sets the second step.
+ * The temperature is the middle column, on open field with nothing framing it. It
+ * is the number the product exists to change, so it sits where the eye arrives
+ * before it starts reading rather than in whichever corner was left over.
+ *
+ * Starts at 1100px because the schedule editor sets the floor: below about 330px
+ * its seven day chips and two time inputs start fighting, and three columns of
+ * that plus gutters is what 1100 buys. Narrower, the tabs are the better layout,
+ * so the awkward middle is simply never entered.
  *
  * This block is last in the file on purpose. Written above the rules it overrides,
- * the base rules win on source order — which is how the sidebar it replaced
- * ended up stretched down the page and the wordmark never appeared at all.
+ * the base rules win on source order — which is how an earlier sidebar ended up
+ * stretched down the page and a wordmark never appeared at all.
  */
-@media (min-width: 900px) {
+@media (min-width: 1100px) {
   .shell {
-    max-width: 1320px;
-    height: auto;
-    min-height: 100%;
+    max-width: none;
+    width: 100%;
+    height: 100vh;
+    height: 100dvh; /* so a browser's collapsing toolbar does not clip the last row */
+    border: none;
   }
 
   .bar {
-    padding: 24px 32px 4px;
+    padding: 18px 28px 12px;
     gap: 16px;
+    border-bottom: 1px solid var(--panel-line);
   }
 
   .bar .brand {
@@ -825,90 +832,95 @@ body {
     font-size: 18px;
   }
 
-  /* A hairline between the name and the place keeps two headings from reading as
-     one run-on title. */
+  /* A hairline between the name and the place stops two headings reading as one
+     run-on title. */
   .bar .where {
     padding-left: 16px;
     border-left: 1px solid var(--panel-line);
-    font-size: 18px;
+    font-size: 17px;
     font-weight: 500;
     color: var(--ink-dim);
   }
 
   .body {
-    padding: 0 32px 40px;
-    overflow: visible;
+    padding: 0;
+    overflow: hidden;
+    min-height: 0;
   }
 
   .dash {
     display: grid;
-    grid-template-columns: minmax(300px, 0.85fr) minmax(360px, 1fr);
-    gap: 24px;
-    align-items: start;
-  }
-
-  /* Stacked at two columns, split in two at three. */
-  .dash-rest {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 1.1fr) minmax(0, 1fr);
+    gap: 0;
+    height: 100%;
+    min-height: 0;
   }
 
   .dash-col {
     display: flex;
     flex-direction: column;
     min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 18px 20px 24px;
   }
 
-  .dash-col > .panel:first-child,
-  .dash-col > :first-child > .panel:first-child {
+  /* Hairlines rather than gaps: with the columns scrolling independently, a gap
+     reads as a gutter that moves, and a rule reads as a boundary that does not. */
+  .dash-col + .dash-col {
+    border-left: 1px solid var(--panel-line);
+  }
+
+  .dash-col > .panel:first-child {
     margin-top: 0;
   }
 
-  /* The control column is the hero: no panel around it, sitting straight on the
-     field, with the dial centred in its own space. */
+  /* The middle column centres itself in the window rather than stacking from the
+     top, which is what puts the reading at eye level. */
   .hero {
     align-items: center;
-    padding-top: 6px;
+    justify-content: center;
+    gap: 0;
+    overflow: hidden;
   }
 
   .hero .modes {
-    padding-top: 4px;
+    padding: 0 0 2px;
+  }
+
+  .hero .mode-says {
+    margin: 8px 20px 4px;
+  }
+
+  .hero .facts {
+    padding: 14px 0 0;
   }
 
   .hero .act {
-    margin: 26px auto 0;
+    margin: 22px auto 0;
+  }
+
+  /* Thin, and only where something actually scrolls. */
+  .dash-col::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .dash-col::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+  }
+
+  .dash-col::-webkit-scrollbar-track {
+    background: transparent;
   }
 
   .alerts {
-    top: 18px;
+    top: 70px;
     bottom: auto;
     left: auto;
     right: 0;
     width: 440px;
-    padding: 0 32px 0 0;
-  }
-}
-
-@media (min-width: 1280px) {
-  .dash {
-    grid-template-columns: minmax(300px, 0.72fr) minmax(740px, 2fr);
-  }
-
-  .dash-rest {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 24px;
-    align-items: start;
-  }
-}
-
-@media (min-width: 900px) {
-  /* The rules sit in the hero column but must not inherit its centring — a
-     paragraph centred under a dial reads as a caption, not as instructions. */
-  .hero > .panel {
-    align-self: stretch;
-    width: 100%;
-    margin-top: 28px;
+    padding: 0 24px 0 0;
   }
 }

@@ -189,13 +189,33 @@ export default function App() {
         ) : wide ? (
           /*
            * Desktop has no navigation at all. Four tabs on a screen with room for
-           * four columns is a phone habit: the only reason to hide three quarters
+           * three columns is a phone habit: the only reason to hide three quarters
            * of a control panel is that there is nowhere to put it.
            *
-           * The dial keeps the field to itself on the left, so it stays the thing
-           * the eye lands on; everything that supports it sits in panels beside it.
+           * Three columns filling the viewport, with the temperature in the
+           * middle one. It is the number the whole product exists to change, so
+           * it sits where the eye arrives before it starts reading: dead centre,
+           * on open field, with nothing framing it.
+           *
+           * The page itself does not scroll. The two side columns scroll inside
+           * themselves instead, so the dial never leaves the screen no matter how
+           * long someone's schedule gets.
+           *
+           * The order here is the order on screen — supporting history, then the
+           * reading, then the settings — so keyboard order matches what is seen.
            */
           <div className="dash">
+            <section className="dash-col">
+              <HistoryTab series={series} />
+              <CareTab
+                m={home.maintenance}
+                busy={busy}
+                onDone={() => act(() => api.serviced())}
+                compact
+              />
+              <CareRules />
+            </section>
+
             <section className="dash-col hero">
               <ControlTab
                 home={home}
@@ -205,39 +225,20 @@ export default function App() {
                 onSchedule={(patch) => act(() => api.setSchedule(patch))}
                 onWater={() => act(() => api.water())}
               />
-              <CareRules />
             </section>
 
-            {/*
-              Everything that is not the dial lives inside one wrapper, which
-              stacks at two columns and splits at three. Left as three siblings in
-              one grid, the two-column case put the schedule back under the dial
-              and left the right half empty from the chart down.
-            */}
-            <div className="dash-rest">
-              <section className="dash-col">
-                <HistoryTab series={series} />
-                <CareTab
-                  m={home.maintenance}
-                  busy={busy}
-                  onDone={() => act(() => api.serviced())}
-                  compact
-                />
-              </section>
-
-              <section className="dash-col">
-                <AutoTab
-                  home={home}
-                  busy={busy}
-                  onSchedule={(patch) => act(() => api.setSchedule(patch))}
-                  onProtect={(patch) => act(() => api.setProtect(patch))}
-                  onAutoWater={(on) => act(() => api.setAutoWater(on))}
-                  onWindowPatch={(id, patch) => act(() => api.setWindow(id, patch))}
-                  onWindowAdd={() => act(() => api.addWindow())}
-                  onWindowDelete={(id) => act(() => api.deleteWindow(id))}
-                />
-              </section>
-            </div>
+            <section className="dash-col">
+              <AutoTab
+                home={home}
+                busy={busy}
+                onSchedule={(patch) => act(() => api.setSchedule(patch))}
+                onProtect={(patch) => act(() => api.setProtect(patch))}
+                onAutoWater={(on) => act(() => api.setAutoWater(on))}
+                onWindowPatch={(id, patch) => act(() => api.setWindow(id, patch))}
+                onWindowAdd={() => act(() => api.addWindow())}
+                onWindowDelete={(id) => act(() => api.deleteWindow(id))}
+              />
+            </section>
           </div>
         ) : tab === "control" ? (
           <ControlTab
