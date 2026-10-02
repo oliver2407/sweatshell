@@ -251,6 +251,7 @@ export default function App() {
                 onWindowDelete={(id) => act(() => api.deleteWindow(id))}
                 onDeviceSettings={(p) => act(() => api.setDeviceSettings(p))}
                 onSetUrl={(url) => act(() => api.setBridge({ url }))}
+                onWaterThreshold={(pct) => act(() => api.setWaterThreshold(pct))}
               />
             </section>
           </div>
@@ -276,6 +277,7 @@ export default function App() {
             onWindowDelete={(id) => act(() => api.deleteWindow(id))}
             onDeviceSettings={(p) => act(() => api.setDeviceSettings(p))}
             onSetUrl={(url) => act(() => api.setBridge({ url }))}
+            onWaterThreshold={(pct) => act(() => api.setWaterThreshold(pct))}
           />
         ) : (
           <CareTab

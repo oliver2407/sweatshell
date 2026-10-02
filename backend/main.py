@@ -287,10 +287,22 @@ def get_config():
 
 @app.patch("/api/config")
 def patch_config(patch: ConfigPatch):
-    for k, v in patch.model_dump(exclude_none=True).items():
+    fields = patch.model_dump(exclude_none=True)
+    for k, v in fields.items():
         config[k] = v
     db.save_setting("config", config)
-    db.log_event("config", f"Config updated: {patch.model_dump(exclude_none=True)}")
+
+    # One number, two places that act on it.
+    #
+    # The firmware waters from its own dry_pct while it is deciding; this app waters
+    # from pump_threshold_pct the rest of the time. They were edited separately and
+    # shown separately, so the screen could read "top up below 76%" above "tops it up
+    # below 30%" — two settings for one behaviour, disagreeing, with nothing saying
+    # which was in charge. Setting one now sets both, and the app shows one control.
+    if "pump_threshold_pct" in fields:
+        bridge.set_device_settings({"dry": int(round(fields["pump_threshold_pct"]))})
+
+    db.log_event("config", f"Config updated: {fields}")
     return {**config, "boxes": BOXES}
 
 
@@ -457,7 +469,7 @@ def desired_sheet_state(now: time.struct_time | None = None) -> bool | None:
     return active_window(now) is not None
 
 
-def tick_schedule() -> None:
+def tick_schedule(now: time.struct_time | None = None) -> None:
     """
     Move the sheet when the schedule's intent changes.
 
@@ -465,8 +477,13 @@ def tick_schedule() -> None:
     sheet up by hand at noon got silently undone three seconds later, which is worse
     than no schedule at all. Acting on the change means a manual decision stands
     until the schedule next crosses a boundary of its own.
+
+    `now` exists for the tests. Reading the clock inside made the edge-triggering
+    check pass or fail by the hour it was run at — it went green all afternoon and
+    red at 19:00, when the window it builds happens to close.
     """
     global _last_desired
+    now = now or time.localtime()
 
     # The device's own thresholds and this clock are alternatives, not layers. While
     # the device is deciding, the schedule keeps its hands off entirely — otherwise
@@ -478,10 +495,10 @@ def tick_schedule() -> None:
         # aligned the sheet immediately — so pressing Roll up while a window was
         # open rolled it straight back out. Tracking it means control returns with
         # the sheet where the person put it, until the next real boundary.
-        _last_desired = desired_sheet_state()
+        _last_desired = desired_sheet_state(now)
         return
 
-    want_out = desired_sheet_state()
+    want_out = desired_sheet_state(now)
     if want_out is None:
         _last_desired = None
         return
@@ -497,7 +514,7 @@ def tick_schedule() -> None:
     if _sheet_out == want_out:
         return
 
-    w = active_window() or {}
+    w = active_window(now) or {}
     at = w.get("out_at" if want_out else "up_at", "")
     label = w.get("label") or "Schedule"
 
@@ -641,6 +658,11 @@ def patch_device_settings(p: DeviceSettingsPatch):
     """Write thresholds through to the firmware, which owns them."""
     patch = p.model_dump(exclude_none=True)
     bridge.set_device_settings(patch)
+    # The water level is the one threshold both sides act on, so it cannot be set
+    # here without the app's own copy following it — see patch_config.
+    if "dry" in patch:
+        config["pump_threshold_pct"] = float(patch["dry"])
+        db.save_setting("config", config)
     db.log_event("device", f"Roof unit settings: {patch}")
     return {"ok": True, "queued": patch}
 

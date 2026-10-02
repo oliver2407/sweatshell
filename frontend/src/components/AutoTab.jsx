@@ -60,6 +60,46 @@ function Address({ device, busy, onSet }) {
   );
 }
 
+/*
+ * The one water level, sitting under the switch it belongs to.
+ *
+ * It is written to the roof unit as well as kept here, because both of them water —
+ * the unit while it is deciding for itself, this app the rest of the time. The
+ * person sets one number and does not have to know that.
+ */
+function WaterLevel({ pct, busy, onSet }) {
+  const [draft, setDraft] = useState(null);
+  const value = draft ?? String(Math.round(pct ?? 30));
+
+  useEffect(() => setDraft(null), [pct]);
+
+  const commit = () => {
+    const n = Number(value);
+    if (Number.isFinite(n) && n !== Math.round(pct ?? 30)) {
+      onSet(Math.min(95, Math.max(5, Math.round(n))));
+    }
+    setDraft(null);
+  };
+
+  return (
+    <label className="thr thr-sub">
+      <span className="thr-l">Top it up below</span>
+      <input
+        type="number"
+        step="1"
+        min="5"
+        max="95"
+        disabled={busy}
+        value={value}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+      />
+      <span className="thr-n">% water</span>
+    </label>
+  );
+}
+
 function DeviceThresholds({ device, busy, onPatch, onSetUrl }) {
   const s = device?.settings;
   const [draft, setDraft] = useState({});
@@ -110,7 +150,6 @@ function DeviceThresholds({ device, busy, onPatch, onSetUrl }) {
         {field("hot", "Roll out above", s.hot, "°C outside")}
         {field("cool", "Roll up below", s.cool, "°C outside")}
         {field("danger", "Only sweat above", s.danger, "°C")}
-        {field("dry", "Top up below", s.dry_pct, "% water", "1")}
       </div>
 
       {/*
@@ -162,6 +201,7 @@ export default function AutoTab({
   onWindowDelete,
   onDeviceSettings,
   onSetUrl,
+  onWaterThreshold,
 }) {
   const s = home.schedule;
   const p = home.protect;
@@ -177,11 +217,22 @@ export default function AutoTab({
       />
 
       <div className="panel">
+        {/*
+          One water level, one control.
+          There were two: this switch watered below the app's own 30%, and a "top up
+          below" field above wrote a different number onto the roof unit, which the
+          unit only used while it was deciding for itself. The screen could read 76%
+          and 30% at once for the same behaviour, with nothing saying which was in
+          charge — and the honest answer was "both, in different circumstances".
+          Setting it here now sets both.
+        */}
         <div className="row">
           <div>
             <div className="lead">Water the sheet by itself</div>
             <div className="note">
-              Tops it up below {Math.round(home.water_threshold_pct ?? 30)}%
+              {home.auto_water
+                ? "Tops it up when the gel dries out"
+                : "Off — you water it by hand"}
             </div>
           </div>
           <button
@@ -193,6 +244,14 @@ export default function AutoTab({
             onClick={() => onAutoWater(!home.auto_water)}
           />
         </div>
+
+        {home.auto_water && (
+          <WaterLevel
+            pct={home.water_threshold_pct}
+            busy={busy}
+            onSet={onWaterThreshold}
+          />
+        )}
 
         <div className="row">
           <div>

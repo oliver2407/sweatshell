@@ -1149,6 +1149,14 @@ body {
   min-height: 48px;
 }
 
+/* A threshold that belongs to the switch above it rather than to a group of its
+   own — indented so the two read as one setting, not two. */
+.thr-sub {
+  padding-left: 14px;
+  border-left: 2px solid var(--panel-line);
+  margin: 2px 0 10px;
+}
+
 .thr-l {
   font-size: 15px;
 }

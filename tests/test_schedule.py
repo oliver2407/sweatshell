@@ -105,13 +105,17 @@ main._sheet_out = False
 main._sheet_request = None
 main.protect["auto"] = False
 
-main.tick_schedule()  # first look after a restart: align with the schedule
+# Pinned to noon, inside the window. Left to the real clock this passed all
+# afternoon and failed at 19:00, when the window it builds happens to close.
+NOON = at(MON, "12:00")
+
+main.tick_schedule(NOON)  # first look after a restart: align with the schedule
 check("first tick asks for out", main._sheet_request, "out")
 
 # The person rolls it up by hand mid-window.
 main._sheet_request = None
 main._sheet_out = False
-main.tick_schedule()
+main.tick_schedule(NOON)
 check("schedule does not undo it", main._sheet_request, None)
 
 print("\nrepeat: daily")

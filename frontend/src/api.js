@@ -68,6 +68,11 @@ export const api = {
   setProtect: (patch) =>
     req("/api/protect", { method: "PATCH", body: JSON.stringify(patch) }),
   serviced: () => req("/api/maintenance/done", { method: "POST" }),
+  setWaterThreshold: (pct) =>
+    req("/api/config", {
+      method: "PATCH",
+      body: JSON.stringify({ pump_threshold_pct: pct }),
+    }),
   setBridge: (patch) =>
     req("/api/bridge", { method: "PATCH", body: JSON.stringify(patch) }),
 };
