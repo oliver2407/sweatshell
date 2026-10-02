@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, clockOf } from "./api.js";
+import { api, clockOf, explain } from "./api.js";
 import ControlTab from "./components/ControlTab.jsx";
 import HistoryTab from "./components/HistoryTab.jsx";
 import AutoTab from "./components/AutoTab.jsx";
@@ -55,6 +55,7 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [offline, setOffline] = useState(false);
   const [dismissed, setDismissed] = useState([]);
+  const [failed, setFailed] = useState(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -77,11 +78,17 @@ export default function App() {
 
   async function act(fn) {
     setBusy(true);
+    setFailed(null);
     try {
       await fn();
       await refresh();
     } catch (e) {
+      // This used to log to the console and stop. Pressing a button and having
+      // nothing at all happen is the worst failure a screen can have: there is
+      // nothing to react to and nothing to search for.
       console.error(e);
+      // Stamped, so dismissing one failure does not hide the next identical one.
+      setFailed({ msg: explain(e), at: Date.now() });
     } finally {
       setBusy(false);
     }
@@ -103,6 +110,14 @@ export default function App() {
   const warn = home.ready ? home.protect?.warning : null;
 
   const alerts = [
+    // A failed action goes first. It is the only one the person caused, so it is
+    // the only one they are waiting on.
+    failed && {
+      key: `failed:${failed.at}`,
+      tone: "var(--crit)",
+      head: "Didn’t work.",
+      body: failed.msg,
+    },
     offline && {
       key: "offline",
       tone: "var(--crit)",

@@ -17,8 +17,32 @@ async function req(path, options = {}) {
     headers: { "Content-Type": "application/json" },
     ...options,
   });
-  if (!res.ok) throw new Error(`${options.method ?? "GET"} ${path} -> ${res.status}`);
+  if (!res.ok) {
+    // The status travels with the error so the app can say something useful. A 404
+    // on an endpoint the app knows about means the backend is older than the page
+    // being served, which is the single most common way this breaks: pull the
+    // repo, reload the browser, forget to restart uvicorn.
+    const err = new Error(`${options.method ?? "GET"} ${path} -> ${res.status}`);
+    err.status = res.status;
+    err.path = path;
+    throw err;
+  }
   return res.json();
+}
+
+/**
+ * Why an action failed, in words. Never a status code on its own.
+ *
+ * The 404 case is worth naming precisely: it means the backend is older than the
+ * page being served, which is the single most common way this breaks — pull the
+ * repo, reload the browser, forget to restart uvicorn.
+ */
+export function explain(err) {
+  if (err?.status === 404)
+    return "The backend is running an older version than this page. Restart uvicorn and try again.";
+  if (err?.status === 422) return "The backend wouldn’t accept that value.";
+  if (err?.status >= 500) return "The backend hit an error — check its terminal.";
+  return "The backend didn’t answer.";
 }
 
 export const api = {
