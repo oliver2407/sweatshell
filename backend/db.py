@@ -33,6 +33,11 @@ CREATE TABLE IF NOT EXISTS sessions (
     notes      TEXT
 );
 
+CREATE TABLE IF NOT EXISTS settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS events (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     ts         REAL NOT NULL,
@@ -202,6 +207,39 @@ def list_sessions() -> list[dict]:
            GROUP BY s.id ORDER BY s.started_at DESC"""
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+# --- settings ---------------------------------------------------------------
+#
+# Everything the person configures once and expects to stay configured: the
+# watering threshold, the schedule times, the wind limit, when the sheet was last
+# serviced, and where the roller currently is.
+#
+# These used to be plain Python dicts, which meant a backend restart silently reset
+# someone's schedule to the factory default and told them their three-month-old
+# sheet was brand new. Settings a person set are data, not defaults.
+
+
+def load_setting(key: str, fallback: dict) -> dict:
+    """Stored value merged over the defaults, so a new field added later still appears."""
+    row = _conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+    if not row:
+        return dict(fallback)
+    try:
+        stored = json.loads(row["value"])
+    except (json.JSONDecodeError, TypeError):
+        # A corrupt row should cost the person their customisation, not the app.
+        return dict(fallback)
+    return {**fallback, **stored} if isinstance(stored, dict) else dict(fallback)
+
+
+def save_setting(key: str, value: dict) -> None:
+    _conn.execute(
+        "INSERT INTO settings (key, value) VALUES (?, ?) "
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        (key, json.dumps(value)),
+    )
+    _conn.commit()
 
 
 # --- events -----------------------------------------------------------------

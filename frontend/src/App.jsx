@@ -1,32 +1,59 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, clockOf } from "./api.js";
-import Alerts from "./components/Alerts.jsx";
-import { IndoorTile, AdviceBar } from "./components/IndoorCard.jsx";
-import WaterCard from "./components/WaterCard.jsx";
-import SheetCard from "./components/SheetCard.jsx";
-import AutomaticCard from "./components/AutomaticCard.jsx";
-import InsideChart from "./components/InsideChart.jsx";
-import MaintenanceCard from "./components/MaintenanceCard.jsx";
-import CareCard from "./components/CareCard.jsx";
+import ControlTab from "./components/ControlTab.jsx";
+import HistoryTab from "./components/HistoryTab.jsx";
+import AutoTab from "./components/AutoTab.jsx";
+import CareTab from "./components/CareTab.jsx";
+import { Drop, Chart, Clock, Leaf } from "./components/icons.jsx";
 
 /*
- * One screen, built for a phone, in the order things matter.
+ * A control panel, not a page.
  *
- * Anything dated goes first, because an alert three cards down is a log entry. Then
- * the two numbers people open the app for, side by side so the first screenful
- * answers "how warm is it and does it need water" without a scroll. Then the sheet
- * and the one button that moves it. Settings are folded away — they are set once and
- * forgotten, so they do not belong between a person and their daily glance.
+ * Four tabs, a fixed bar, and nothing scrolls on the one people open most. The
+ * alert sits above the tab content rather than inside a tab, because weather that
+ * could tear the sheet is not a thing to go looking for.
  */
 
 const POLL_MS = 3000;
 
+const TABS = [
+  { id: "control", label: "Control", Icon: Drop },
+  { id: "history", label: "History", Icon: Chart },
+  { id: "auto", label: "Automatic", Icon: Clock },
+  { id: "care", label: "Care", Icon: Leaf },
+];
+
+function formatDay(iso) {
+  const d = new Date(iso + "T00:00:00");
+  return d.toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" });
+}
+
+function hourOf(ts) {
+  return new Date(ts * 1000).toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function windowLabel(w) {
+  const now = Date.now() / 1000;
+  if (now >= w.end) return "Clearing";
+  if (now >= w.start) return `Now until ${hourOf(w.end)}`;
+  return `${formatDay(w.date)}, ${hourOf(w.start)}–${hourOf(w.end)}`;
+}
+
+function warnAdvice(w, auto, sheetOut) {
+  if (!sheetOut) return `Keep it rolled up until ${hourOf(w.safe_after)}.`;
+  if (auto) return `The sheet will roll itself up around ${hourOf(w.roll_up_by)}.`;
+  return `Roll it up by ${hourOf(w.roll_up_by)} so it doesn’t tear.`;
+}
+
 export default function App() {
   const [home, setHome] = useState(null);
   const [series, setSeries] = useState([]);
+  const [tab, setTab] = useState("control");
   const [busy, setBusy] = useState(false);
   const [offline, setOffline] = useState(false);
-  const [theme, setTheme] = useState(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -47,11 +74,6 @@ export default function App() {
     return () => clearInterval(t);
   }, [refresh]);
 
-  useEffect(() => {
-    if (theme) document.documentElement.setAttribute("data-theme", theme);
-    else document.documentElement.removeAttribute("data-theme");
-  }, [theme]);
-
   async function act(fn) {
     setBusy(true);
     try {
@@ -66,59 +88,107 @@ export default function App() {
 
   if (!home) {
     return (
-      <div className="app">
-        <h1>SweatShell</h1>
-        <p style={{ color: "var(--text-muted)" }}>Connecting to your roof…</p>
+      <div className="shell">
+        <div className="bar">
+          <span className="where">SweatShell</span>
+        </div>
+        <div className="body">
+          <div className="empty">Looking for your roof…</div>
+        </div>
       </div>
     );
   }
 
+  const warn = home.protect?.warning;
+
   return (
-    <div className="app">
-      <header className="head">
-        <h1>SweatShell</h1>
-        <button
-          className="icon"
-          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-        >
-          {theme === "dark" ? "Light" : "Dark"}
-        </button>
+    <div className="shell">
+      <header className="bar">
+        <span className="where">Your roof</span>
+        <span className="when">
+          {offline ? "Offline" : home.ready ? clockOf(home.ts) : ""}
+        </span>
       </header>
 
-      <Alerts home={home.ready ? home : null} offline={offline} />
+      <div className="body">
+        {offline && (
+          <div className="alert">
+            <span className="pip" style={{ background: "var(--crit)" }} />
+            <span>
+              <strong>Can’t reach your roof.</strong> Showing the last reading that
+              came through.
+            </span>
+          </div>
+        )}
 
-      {!home.ready ? (
-        <div className="card">
-          <h2>Not connected</h2>
-          <p style={{ color: "var(--text-secondary)", margin: 0 }}>{home.message}</p>
-        </div>
-      ) : (
-        <>
-          <IndoorTile home={home} />
-          <WaterCard home={home} busy={busy} onWater={() => act(() => api.water())} />
-          <AdviceBar home={home} />
-          <SheetCard
+        {home.ready && warn && (
+          <div className="alert">
+            <span className="pip" style={{ background: "var(--warn)" }} />
+            <span>
+              <strong>
+                {windowLabel(warn)} — {warn.reason}.
+              </strong>{" "}
+              {warnAdvice(warn, home.protect.auto, home.sheet_out)}
+            </span>
+          </div>
+        )}
+
+        {home.ready && home.protect?.season_over && (
+          <div className="alert">
+            <span className="pip" style={{ background: "var(--ink-faint)" }} />
+            <span>
+              <strong>The next week is mild.</strong> If the hot season is over, roll
+              it up, dry it fully, and store it.
+            </span>
+          </div>
+        )}
+
+        {!home.ready ? (
+          <div className="empty">
+            {home.message} Once the roof unit is powered and on your wifi, its readings
+            arrive here.
+          </div>
+        ) : tab === "control" ? (
+          <ControlTab
             home={home}
             busy={busy}
             onMove={(out) => act(() => api.moveSheet(out))}
+            onSchedule={(patch) => act(() => api.setSchedule(patch))}
+            onWater={() => act(() => api.water())}
           />
-          <InsideChart series={series} />
-          <AutomaticCard
+        ) : tab === "history" ? (
+          <HistoryTab series={series} />
+        ) : tab === "auto" ? (
+          <AutoTab
             home={home}
             busy={busy}
-            onAuto={(on) => act(() => api.setAutoWater(on))}
             onSchedule={(patch) => act(() => api.setSchedule(patch))}
             onProtect={(patch) => act(() => api.setProtect(patch))}
+            onAutoWater={(on) => act(() => api.setAutoWater(on))}
           />
-          <MaintenanceCard
+        ) : (
+          <CareTab
             m={home.maintenance}
             busy={busy}
             onDone={() => act(() => api.serviced())}
           />
-          <CareCard />
-          <p className="foot">Updated {clockOf(home.ts)}</p>
-        </>
-      )}
+        )}
+      </div>
+
+      <nav className="tabs" role="tablist">
+        {TABS.map(({ id, label, Icon }) => (
+          <button
+            key={id}
+            className="tab"
+            role="tab"
+            aria-selected={tab === id}
+            onClick={() => setTab(id)}
+          >
+            <Icon />
+            {label}
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }

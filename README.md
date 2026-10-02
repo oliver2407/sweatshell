@@ -142,6 +142,27 @@ not a good surprise.
 | `POST /api/scale` | Projects the measured water cost onto a real roof |
 | `GET /api/assumptions` | Every constant behind the cooling numbers |
 
+## What the database holds
+
+One SQLite file, `backend/sweatshell.db`. Four tables, and each is there because
+losing it would cost something real:
+
+| Table | Why it cannot live in memory |
+|---|---|
+| `readings` | The chart. Without it, reloading the page gives an empty graph |
+| `settings` | The schedule, the watering threshold, the wind limit, when the sheet was last serviced, and where the roller is |
+| `events` | What the controller decided and when — the evidence it decided anything |
+| `sessions` | Named bench runs and their CSV export |
+
+The `settings` table is the one that was missing. Those values used to be Python
+dicts, so restarting the backend silently handed someone the factory schedule back
+and told them their three-month-old sheet was brand new. Settings a person set are
+data, not defaults.
+
+Not in the database, on purpose: the pending pump or roller command, and which
+schedule slot already fired today. Those are about this run, not this installation,
+and a restart *should* forget them.
+
 ## The cooling maths, and where it could be wrong
 
 Everything on the "what the water bought" panel derives from one measured quantity:

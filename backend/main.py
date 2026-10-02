@@ -35,15 +35,24 @@ BOXES = {
     "box4": "Eggshell + wet cloth (control)",
 }
 
+# Everything below that a person can change is loaded from the database and written
+# back whenever it changes, so a backend restart does not quietly hand them the
+# factory defaults again. The transient things — a pending pump command, which
+# schedule slot already fired today — stay in memory on purpose: they are about this
+# run, not about this installation.
+
 # Calibrate these against the real pad before the demo: weigh it soaking wet, then
 # oven-dry it and weigh again. Guessing here makes the water gauge meaningless.
-config = {
-    "gel_full_mass_g": 300.0,  # pad + tray, fully saturated
-    "gel_dry_mass_g": 120.0,  # pad + tray, bone dry
-    "pump_threshold_pct": 30.0,  # water level that triggers a watering
-    "pump_run_seconds": 5.0,
-    "auto_pump": True,
-}
+config = db.load_setting(
+    "config",
+    {
+        "gel_full_mass_g": 300.0,  # pad + tray, fully saturated
+        "gel_dry_mass_g": 120.0,  # pad + tray, bone dry
+        "pump_threshold_pct": 30.0,  # water level that triggers a watering
+        "pump_run_seconds": 5.0,
+        "auto_pump": True,
+    },
+)
 
 # Set when the dashboard or the auto rule asks for water; the ESP32 polls and clears it.
 _pump_request: dict | None = None
@@ -52,37 +61,52 @@ _last_pump_at: float = 0.0
 # The sheet is on a motorised roller. Same pattern as the pump: the app sets a
 # request, the device polls and clears it, and the device reports back what it
 # actually did. The app never assumes the motor obeyed.
-_sheet_out: bool = True
+#
+# The roller's position is persisted too. It is physical state: if the backend
+# restarts overnight while the sheet is rolled up, the app must not wake up
+# claiming it is out over the roof.
+_sheet_out: bool = db.load_setting("sheet", {"out": True})["out"]
 _sheet_request: str | None = None  # "out" | "up" | None
 
 # Daily schedule. The sheet's useful moves are slow and predictable — out in the
 # morning, up in the evening — so a clock beats a thermostat here. A roof covering
 # takes hours to change the temperature inside, which means reacting to an indoor
 # reading is always too late; being out before the sun arrives is what works.
-schedule = {
-    "enabled": False,
-    "roll_out_at": "08:00",
-    "roll_up_at": "19:00",
-}
+schedule = db.load_setting(
+    "schedule",
+    {
+        "enabled": False,
+        "roll_out_at": "08:00",
+        "roll_up_at": "19:00",
+    },
+)
 _schedule_fired: dict[str, str] = {}  # action -> the date it last fired
 
 # Protective auto roll-up, driven by the forecast rather than by a sensor. A wind
 # gust that could tear the sheet has to be acted on before it arrives, and nothing
 # on the roof can see it coming.
-protect = {
-    "enabled": True,
-    "auto": False,  # False = warn the person and let them press the button
-    "wind_gust_kmh": forecast.DEFAULT_WIND_GUST_KMH,
-}
+protect = db.load_setting(
+    "protect",
+    {
+        "enabled": True,
+        "auto": False,  # False = warn the person and let them press the button
+        "wind_gust_kmh": forecast.DEFAULT_WIND_GUST_KMH,
+    },
+)
 _protect_fired_for: float | None = None  # start of the risk window we acted on
 
 # Maintenance. The gel softens over months and wants one spray of the setting
 # solution to firm up again.
-maintenance = {
-    "installed_at": time.time(),
-    "last_service_at": time.time(),
-    "interval_days": 90,
-}
+maintenance = db.load_setting(
+    "maintenance",
+    {
+        "installed_at": time.time(),
+        "last_service_at": time.time(),
+        "interval_days": 90,
+    },
+)
+# First run only: fix the install date so it is not re-stamped on every boot.
+db.save_setting("maintenance", maintenance)
 
 # Guards against a noisy load cell hammering the pump.
 #
@@ -195,6 +219,7 @@ def get_config():
 def patch_config(patch: ConfigPatch):
     for k, v in patch.model_dump(exclude_none=True).items():
         config[k] = v
+    db.save_setting("config", config)
     db.log_event("config", f"Config updated: {patch.model_dump(exclude_none=True)}")
     return {**config, "boxes": BOXES}
 
@@ -206,8 +231,11 @@ def post_reading(reading: Reading):
     session = db.active_session()
     session_id = session["id"] if session else None
 
-    if reading.sheet_out is not None:
+    if reading.sheet_out is not None and reading.sheet_out != _sheet_out:
+        # Only on a change: the roller reports its position with every reading, and
+        # writing that to disk a few times a minute forever would be pointless.
         _sheet_out = reading.sheet_out
+        db.save_setting("sheet", {"out": _sheet_out})
 
     # Incoming readings are the system's heartbeat, so the clock and the forecast get
     # checked here rather than on a background thread. One less thing to keep alive.
@@ -538,6 +566,7 @@ def get_forecast():
 def patch_schedule(p: SchedulePatch):
     for k, v in p.model_dump(exclude_none=True).items():
         schedule[k] = v
+    db.save_setting("schedule", schedule)
     db.log_event(
         "schedule",
         f"Schedule updated: out {schedule['roll_out_at']}, up {schedule['roll_up_at']}, "
@@ -550,6 +579,7 @@ def patch_schedule(p: SchedulePatch):
 def patch_protect(p: ProtectPatch):
     for k, v in p.model_dump(exclude_none=True).items():
         protect[k] = v
+    db.save_setting("protect", protect)
     return protect
 
 
@@ -557,6 +587,7 @@ def patch_protect(p: ProtectPatch):
 def maintenance_done():
     """The person has just serviced the sheet. Reset the countdown."""
     maintenance["last_service_at"] = time.time()
+    db.save_setting("maintenance", maintenance)
     db.log_event("maintenance", "Sheet serviced — countdown reset")
     return maintenance_state(forecast.fetch())
 
