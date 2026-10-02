@@ -458,7 +458,14 @@ def home():
             "power and wifi.",
         )
     elif pct is None:
-        status, advice = "unknown", "The roof sensor is not reporting. Check it is powered."
+        # The temperature probes can be fine while the load cell is not. Naming the
+        # wrong part sends someone to check the wrong wire, which is worse than
+        # saying nothing.
+        status, advice = (
+            "unknown",
+            "Temperatures are coming through, but the scale under the gel is not "
+            "reporting, so there is no water reading.",
+        )
     elif not _sheet_out:
         status, advice = "parked", "The sheet is rolled up. Roll it out to start cooling."
     elif pct < 20:
