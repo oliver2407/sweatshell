@@ -3,12 +3,17 @@ SQLite storage. Plain stdlib sqlite3 on purpose: one file, no migrations, nothin
 to configure at 2am.
 """
 
+import functools
 import json
+import os
 import sqlite3
+import threading
 import time
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent / "sweatshell.db"
+# Overridable so a test never writes into a real install's measurements, and so two
+# installs can share a checkout.
+DB_PATH = Path(os.environ.get("SWEATSHELL_DB") or Path(__file__).parent / "sweatshell.db")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS readings (
@@ -82,9 +87,32 @@ def db() -> sqlite3.Connection:
     return _conn
 
 
+# One connection, now with more than one thread using it.
+#
+# The bridge writes a reading every few seconds from its own thread while request
+# handlers read and write from the server's threadpool. A sqlite3 connection is not
+# safe for concurrent use: the failures are intermittent, and the one that actually
+# bites is a request that hangs rather than raises, because the app disables every
+# button while an action is in flight. A dead-looking Auto button is what an
+# unguarded database looks like from the outside.
+#
+# Reentrant, because some of these call each other.
+_lock = threading.RLock()
+
+
+def _locked(fn):
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        with _lock:
+            return fn(*args, **kwargs)
+
+    return wrapper
+
+
 # --- readings ---------------------------------------------------------------
 
 
+@_locked
 def insert_reading(
     roof: dict,
     inside: dict,
@@ -132,6 +160,7 @@ def _row_to_reading(row: sqlite3.Row) -> dict:
     }
 
 
+@_locked
 def latest_reading(session_id: int | None = None) -> dict | None:
     """
     The most recently *received* reading, by arrival rather than by timestamp.
@@ -156,6 +185,7 @@ def latest_reading(session_id: int | None = None) -> dict | None:
 CLOCK_SKEW_S = 120.0
 
 
+@_locked
 def readings_since(seconds: float, session_id: int | None = None) -> list[dict]:
     """
     A window of recent readings — bounded at both ends.
@@ -178,6 +208,7 @@ def readings_since(seconds: float, session_id: int | None = None) -> list[dict]:
     return [_row_to_reading(r) for r in rows]
 
 
+@_locked
 def session_readings(session_id: int) -> list[dict]:
     rows = _conn.execute(
         "SELECT * FROM readings WHERE session_id = ? ORDER BY ts ASC", (session_id,)
@@ -188,6 +219,7 @@ def session_readings(session_id: int) -> list[dict]:
 # --- sessions ---------------------------------------------------------------
 
 
+@_locked
 def start_session(label: str, notes: str | None = None) -> dict:
     # Only one open session at a time, so a forgotten stop does not corrupt the next run.
     _conn.execute(
@@ -201,6 +233,7 @@ def start_session(label: str, notes: str | None = None) -> dict:
     return get_session(cur.lastrowid)
 
 
+@_locked
 def stop_session(session_id: int) -> dict | None:
     _conn.execute(
         "UPDATE sessions SET ended_at = ? WHERE id = ? AND ended_at IS NULL",
@@ -210,11 +243,13 @@ def stop_session(session_id: int) -> dict | None:
     return get_session(session_id)
 
 
+@_locked
 def get_session(session_id: int) -> dict | None:
     row = _conn.execute("SELECT * FROM sessions WHERE id = ?", (session_id,)).fetchone()
     return dict(row) if row else None
 
 
+@_locked
 def active_session() -> dict | None:
     row = _conn.execute(
         "SELECT * FROM sessions WHERE ended_at IS NULL ORDER BY started_at DESC LIMIT 1"
@@ -222,6 +257,7 @@ def active_session() -> dict | None:
     return dict(row) if row else None
 
 
+@_locked
 def list_sessions() -> list[dict]:
     rows = _conn.execute(
         """SELECT s.*, COUNT(r.id) AS reading_count
@@ -242,6 +278,7 @@ def list_sessions() -> list[dict]:
 # sheet was brand new. Settings a person set are data, not defaults.
 
 
+@_locked
 def load_setting(key: str, fallback: dict) -> dict:
     """Stored value merged over the defaults, so a new field added later still appears."""
     row = _conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
@@ -255,6 +292,7 @@ def load_setting(key: str, fallback: dict) -> dict:
     return {**fallback, **stored} if isinstance(stored, dict) else dict(fallback)
 
 
+@_locked
 def save_setting(key: str, value: dict) -> None:
     _conn.execute(
         "INSERT INTO settings (key, value) VALUES (?, ?) "
@@ -267,6 +305,7 @@ def save_setting(key: str, value: dict) -> None:
 # --- events -----------------------------------------------------------------
 
 
+@_locked
 def log_event(kind: str, message: str, session_id: int | None = None) -> None:
     _conn.execute(
         "INSERT INTO events (ts, session_id, kind, message) VALUES (?, ?, ?, ?)",
@@ -275,6 +314,7 @@ def log_event(kind: str, message: str, session_id: int | None = None) -> None:
     _conn.commit()
 
 
+@_locked
 def recent_events(limit: int = 40, session_id: int | None = None) -> list[dict]:
     if session_id is not None:
         rows = _conn.execute(
