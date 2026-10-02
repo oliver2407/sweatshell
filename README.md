@@ -93,6 +93,28 @@ So when the bridge takes over it puts the device into manual mode. Set
 `take_control: false` on `/api/bridge` to leave the device in charge instead — but
 pick one.
 
+### Connecting to the roof unit
+
+The device prints its address on the serial monitor at boot. Open it in a browser
+first — the firmware serves its own control page there, and if that page does not
+load the problem is wifi, not this backend.
+
+The default is already the rig's address, so a fresh install connects on its own.
+To point it somewhere else:
+
+```bash
+curl -X PATCH localhost:8000/api/bridge -H 'Content-Type: application/json' \
+  -d '{"enabled":true,"url":"http://172.20.10.10"}'
+```
+
+`GET /api/bridge` says whether it is working. `connected` means the last poll
+succeeded; `last_error` names what to go and look at rather than printing an
+exception.
+
+**Both machines have to be on the same wifi.** `172.20.10.x` is an iPhone
+personal-hotspot subnet: the roof unit joins the hotspot, and a laptop that quietly
+rejoined the house network is the most common way this looks broken when nothing is.
+
 ### Testing it without the hardware
 
 `backend/fake_esp.py` serves the firmware's own JSON shape on a local port:

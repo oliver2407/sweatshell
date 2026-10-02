@@ -26,10 +26,16 @@ import time
 
 import httpx
 
-# Defaults; the real values live in the settings table and are editable at runtime.
+# Defaults for a fresh install. Once anything is set through /api/bridge the stored
+# value wins and editing these does nothing.
+#
+# The address is the rig's own: 172.20.10.x is an iPhone personal-hotspot subnet,
+# which is what the roof unit joins. The machine running this backend has to be on
+# that same hotspot — a laptop quietly rejoining the house wifi is the most common
+# way this looks broken when nothing is.
 DEFAULTS = {
-    "enabled": False,
-    "url": "http://192.168.1.60",  # the ESP32's address, as printed on its serial
+    "enabled": True,
+    "url": "http://172.20.10.10",  # as printed on the device's serial at boot
     "poll_seconds": 3.0,
     "take_control": True,  # put the device in manual so the schedule is in charge
 }
@@ -54,13 +60,38 @@ _state = {
 }
 
 
+def explain(exc: Exception, url: str) -> str:
+    """
+    Why the roof unit did not answer, in words someone can act on.
+
+    A stack trace tells you what the library felt. These tell you which wire to go
+    and look at, which is the only question being asked at 2am before a demo.
+    """
+    if isinstance(exc, (httpx.ConnectError, httpx.ConnectTimeout)):
+        return (
+            f"Nothing answered at {url}. Usually this machine and the roof unit are "
+            "on different wifi — the unit joins the phone hotspot, and laptops "
+            "quietly rejoin the house network."
+        )
+    if isinstance(exc, httpx.ReadTimeout):
+        return "The roof unit took too long to answer. Weak signal, or it is busy driving the motor."
+    if isinstance(exc, httpx.HTTPStatusError):
+        return f"The address answered with HTTP {exc.response.status_code}, not a reading."
+    if isinstance(exc, ValueError):  # covers JSON decode
+        return f"Something answered at {url}, but it was not the roof unit."
+    return f"{type(exc).__name__}: {exc}"
+
+
 def status() -> dict:
     """Enough for the app to say whether the roof unit is actually answering."""
     age = (time.time() - _state["last_ok"]) if _state["last_ok"] else None
     return {
         **_state,
         "seconds_since_ok": round(age, 1) if age is not None else None,
-        "connected": age is not None and age < 15,
+        # Connected means the last attempt worked. Reporting it from the age alone
+        # left the app claiming a healthy connection while an error from two seconds
+        # ago sat right beside it.
+        "connected": _state["last_error"] is None and age is not None and age < 15,
     }
 
 
@@ -144,7 +175,10 @@ class Bridge:
                 try:
                     self._tick(client, b)
                 except Exception as exc:
-                    _state["last_error"] = f"{type(exc).__name__}: {exc}"
+                    _state["last_error"] = explain(exc, b.get("url", "?"))
+                    # A failed poll means the claim has to be made again when the
+                    # device comes back; it may have rebooted into auto mode.
+                    self._claimed = False
                 self._stop.wait(max(1.0, float(b.get("poll_seconds", 3.0))))
 
     def _tick(self, client: httpx.Client, b: dict) -> None:
@@ -164,6 +198,13 @@ class Bridge:
         r = client.get(f"{base}/data")
         r.raise_for_status()
         d = r.json()
+
+        # Check it is actually the roof unit before trusting a word of it. Plenty of
+        # things on a network answer with valid JSON, and without this the bridge
+        # quietly fills the database with rows of nulls and the app shows dashes
+        # while reporting a healthy connection.
+        if not isinstance(d, dict) or "temps" not in d or "roller" not in d:
+            raise ValueError("response is not a SweatShell reading")
 
         _state["device_mode"] = d.get("mode")
         _state["last_ok"] = time.time()
