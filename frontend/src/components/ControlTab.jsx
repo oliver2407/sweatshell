@@ -12,6 +12,35 @@ import { RollOut, RollUp, Clock } from "./icons.jsx";
  * schedule is running would hand control back for all of ten minutes.
  */
 
+function hhmmTo12(hhmm) {
+  const [h, m] = hhmm.split(":").map(Number);
+  const suffix = h < 12 ? "am" : "pm";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return m === 0 ? `${h12} ${suffix}` : `${h12}:${String(m).padStart(2, "0")} ${suffix}`;
+}
+
+/** One line saying who is deciding, and what happens next. */
+function modeSentence(home) {
+  if (!home.schedule.enabled) {
+    return home.sheet_out
+      ? "You’re deciding. The sheet stays out until you move it."
+      : "You’re deciding. The sheet stays up until you move it.";
+  }
+
+  const next = home.schedule.next_change;
+  if (!next) return "On a schedule, but no window covers today.";
+
+  const when = `${hhmmTo12(next.at)}${next.today ? "" : " tomorrow"}`;
+  const verb = next.to === "out" ? "rolling out" : "rolling up";
+
+  // After a manual move, the sheet is not where the schedule wants it. Saying so is
+  // better than pretending, and it tells the person exactly when it goes back.
+  const held = home.schedule.wants_out !== home.sheet_out;
+  return held
+    ? `Held ${home.sheet_out ? "out" : "up"} by you. Back on schedule at ${when}.`
+    : `On a schedule — ${verb} at ${when}.`;
+}
+
 export default function ControlTab({ home, busy, onMove, onSchedule, onWater }) {
   const out = home.sheet_out;
   const auto = home.schedule.enabled;
@@ -53,9 +82,16 @@ export default function ControlTab({ home, busy, onMove, onSchedule, onWater }) 
           <span className="ring">
             <Clock />
           </span>
-          <span className="label">Schedule</span>
+          <span className="label">Auto</span>
         </button>
       </div>
+
+      {/*
+        A mode button that does nothing visible for six hours is a button nobody
+        trusts. This line is the promise: turn Auto on and it tells you the next
+        thing it will do, by the clock, before it does it.
+      */}
+      <p className="mode-says">{modeSentence(home)}</p>
 
       <Dial home={home} />
 

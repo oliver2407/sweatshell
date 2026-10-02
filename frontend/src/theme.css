@@ -239,13 +239,23 @@ body {
   color: var(--ink);
 }
 
+.mode-says {
+  margin: 10px 20px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-dim);
+  line-height: 1.4;
+  flex: none;
+  min-height: 36px; /* reserved, so the sentence changing never moves the dial */
+}
+
 /* --- the dial --------------------------------------------------------- */
 
 .dial {
   position: relative;
   display: grid;
   place-items: center;
-  margin: 4px auto 0;
+  margin: 0 auto;
   flex: none;
 }
 

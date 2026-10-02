@@ -112,6 +112,35 @@ main._sheet_out = False
 main.tick_schedule()
 check("schedule does not undo it", main._sheet_request, None)
 
+print("\nnext change, which is what the Auto button promises")
+set_windows(win(out_at="08:00", up_at="19:00"))
+nxt = main.next_change(at(MON, "09:00"))
+check("mid-window, next move is up at 19:00", (nxt["at"], nxt["to"]), ("19:00", "up"))
+nxt = main.next_change(at(MON, "20:00"))
+check("after close, next move is out at 08:00", (nxt["at"], nxt["to"]), ("08:00", "out"))
+check("and it is not today", nxt["today"], False)
+
+set_windows(
+    win(id=1, out_at="07:00", up_at="11:30"),
+    win(id=2, out_at="14:00", up_at="20:00"),
+)
+nxt = main.next_change(at(MON, "09:00"))
+check("with a lunch gap, up at 11:30 comes first", nxt["at"], "11:30")
+nxt = main.next_change(at(MON, "12:00"))
+check("in the gap, out at 14:00 is next", (nxt["at"], nxt["to"]), ("14:00", "out"))
+
+# Two windows that touch: 07:00-12:00 and 12:00-16:00 is one unbroken stretch, so
+# the boundary at noon is not a change and must not be reported as one.
+set_windows(
+    win(id=1, out_at="07:00", up_at="12:00"),
+    win(id=2, out_at="12:00", up_at="16:00"),
+)
+nxt = main.next_change(at(MON, "09:00"))
+check("touching windows do not report a move at the join", nxt["at"], "16:00")
+
+set_windows(win(), enabled=False)
+check("switched off, nothing is promised", main.next_change(at(MON, "09:00")), None)
+
 print()
 if failures:
     print(f"{len(failures)} FAILED: {', '.join(failures)}")

@@ -705,6 +705,56 @@ def patch_schedule(p: SchedulePatch):
     return schedule_state()
 
 
+def next_change(now: time.struct_time | None = None) -> dict | None:
+    """
+    The next moment the schedule will move the sheet, and which way.
+
+    A button that says "Auto" and does nothing visible for six hours is a button
+    nobody trusts. Handing the app the next move lets it say "rolling up at 8:00 pm"
+    instead, which is the whole answer to what turning this on will do.
+
+    Works by evaluating the schedule a minute after each boundary rather than
+    reasoning about which window wins, so overlapping windows cannot trip it up.
+    """
+    now = now or time.localtime()
+    current = desired_sheet_state(now)
+    if current is None:
+        return None
+
+    start = time.mktime(now)
+    candidates: list[float] = []
+    for day_offset in range(8):
+        day = time.localtime(start + day_offset * 86400)
+        for w in schedule.get("windows", []):
+            if not window_applies_today(w, day):
+                continue
+            for hhmm in (w["out_at"], w["up_at"]):
+                try:
+                    h, m = (int(x) for x in hhmm.split(":"))
+                except ValueError:
+                    continue
+                t = time.mktime(
+                    (day.tm_year, day.tm_mon, day.tm_mday, h, m, 0, 0, 0, -1)
+                )
+                if t > start:
+                    candidates.append(t)
+
+    for t in sorted(set(candidates)):
+        # A minute past the boundary, so the comparison in active_window has
+        # unambiguously crossed it.
+        after = time.localtime(t + 60)
+        state = desired_sheet_state(after)
+        if state is not None and state != current:
+            return {
+                "at": time.strftime("%H:%M", time.localtime(t)),
+                "epoch": t,
+                "to": "out" if state else "up",
+                "today": time.strftime("%Y-%m-%d", time.localtime(t))
+                == time.strftime("%Y-%m-%d", now),
+            }
+    return None
+
+
 def schedule_state() -> dict:
     """The schedule plus what it currently wants, which is what the app shows."""
     now = time.localtime()
@@ -713,6 +763,7 @@ def schedule_state() -> dict:
         **schedule,
         "active_window_id": w["id"] if w else None,
         "wants_out": desired_sheet_state(now),
+        "next_change": next_change(now),
     }
 
 
