@@ -299,8 +299,91 @@ body {
   color: var(--ink-faint);
 }
 
-.warnline {
+/* Specific enough to beat `.panel p`, which otherwise repaints it back to body
+   ink — a failure notice rendered as ordinary prose reads as a description. */
+.warnline,
+.panel .warnline {
   color: var(--crit);
+}
+
+/* --- the roof unit's address ------------------------------------------ */
+
+.addr {
+  margin-top: 14px;
+}
+
+.addr-l {
+  display: block;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: 7px;
+}
+
+.addr-row {
+  display: flex;
+  gap: 8px;
+}
+
+.addr-in {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  font-size: 15px;
+  padding: 11px 12px;
+  min-height: 46px;
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--panel-line);
+  border-radius: 11px;
+}
+
+.addr-go {
+  flex: none;
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  padding: 11px 16px;
+  min-height: 46px;
+  border: none;
+  border-radius: 11px;
+  color: var(--field-bottom);
+  background: var(--gel);
+  cursor: pointer;
+}
+
+.addr-go:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Tucked away while the unit is answering — it is the right thing to reach for
+   when nothing works, and clutter the rest of the time. */
+.fold {
+  margin-top: 14px;
+  border-top: 1px solid var(--panel-line);
+  padding-top: 10px;
+}
+
+.fold > summary {
+  font-size: 13px;
+  color: var(--ink-dim);
+  cursor: pointer;
+  list-style: none;
+}
+
+.fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.fold > summary::before {
+  content: "+ ";
+  color: var(--ink-faint);
+}
+
+.fold[open] > summary::before {
+  content: "− ";
 }
 
 /* --- where the sheet is, and how to move it ---------------------------- */

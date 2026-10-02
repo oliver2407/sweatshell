@@ -68,6 +68,8 @@ export const api = {
   setProtect: (patch) =>
     req("/api/protect", { method: "PATCH", body: JSON.stringify(patch) }),
   serviced: () => req("/api/maintenance/done", { method: "POST" }),
+  setBridge: (patch) =>
+    req("/api/bridge", { method: "PATCH", body: JSON.stringify(patch) }),
 };
 
 export function fmt(n, digits = 1) {

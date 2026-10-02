@@ -250,6 +250,7 @@ export default function App() {
                 onWindowAdd={() => act(() => api.addWindow())}
                 onWindowDelete={(id) => act(() => api.deleteWindow(id))}
                 onDeviceSettings={(p) => act(() => api.setDeviceSettings(p))}
+                onSetUrl={(url) => act(() => api.setBridge({ url }))}
               />
             </section>
           </div>
@@ -274,6 +275,7 @@ export default function App() {
             onWindowAdd={() => act(() => api.addWindow())}
             onWindowDelete={(id) => act(() => api.deleteWindow(id))}
             onDeviceSettings={(p) => act(() => api.setDeviceSettings(p))}
+            onSetUrl={(url) => act(() => api.setBridge({ url }))}
           />
         ) : (
           <CareTab

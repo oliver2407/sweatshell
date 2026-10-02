@@ -8,7 +8,59 @@ import ScheduleList from "./ScheduleList.jsx";
  * through to the firmware, which owns them. A second copy in this app would be one
  * more thing that has to agree with the first.
  */
-function DeviceThresholds({ device, busy, onPatch }) {
+/*
+ * Where the roof unit lives on the network.
+ *
+ * This is the setting that changes most often and it was the only one with no way
+ * to change it: the unit joins a phone hotspot, the hotspot hands out a new address
+ * every time either end restarts, and the app simply went quiet. Fixing it meant a
+ * curl command, which is not a thing to be doing in front of an audience.
+ */
+function Address({ device, busy, onSet }) {
+  const [draft, setDraft] = useState(null);
+  const current = device?.url ?? "";
+  const value = draft ?? current;
+  const changed = value.trim() !== current;
+
+  return (
+    <div className="addr">
+      <label className="addr-l" htmlFor="roof-url">
+        Roof unit address
+      </label>
+      <div className="addr-row">
+        <input
+          id="roof-url"
+          className="addr-in"
+          type="url"
+          inputMode="url"
+          spellCheck="false"
+          autoComplete="off"
+          placeholder="http://172.20.10.2"
+          disabled={busy}
+          value={value}
+          onChange={(e) => setDraft(e.target.value)}
+        />
+        <button
+          className="addr-go"
+          disabled={busy || !changed || !value.trim()}
+          onClick={() => {
+            onSet(value.trim());
+            setDraft(null);
+          }}
+        >
+          Connect
+        </button>
+      </div>
+      <p className="tiny">
+        Printed on the unit’s serial output when it boots. On a phone hotspot it
+        changes whenever the unit restarts, so if the app goes quiet, check it here
+        first.
+      </p>
+    </div>
+  );
+}
+
+function DeviceThresholds({ device, busy, onPatch, onSetUrl }) {
   const s = device?.settings;
   const [draft, setDraft] = useState({});
 
@@ -18,10 +70,10 @@ function DeviceThresholds({ device, busy, onPatch }) {
     return (
       <div className="panel">
         <h2>Automatic by temperature</h2>
-        <p>
-          Not connected to the roof unit, so its thresholds can’t be read or changed
-          from here.
+        <p className="warnline">
+          {device?.error ?? "Not connected to the roof unit."}
         </p>
+        <Address device={device} busy={busy} onSet={onSetUrl} />
       </div>
     );
   }
@@ -76,6 +128,11 @@ function DeviceThresholds({ device, busy, onPatch }) {
           closed.
         </p>
       )}
+
+      <details className="fold">
+        <summary>Connection</summary>
+        <Address device={device} busy={busy} onSet={onSetUrl} />
+      </details>
     </div>
   );
 }
@@ -104,6 +161,7 @@ export default function AutoTab({
   onWindowAdd,
   onWindowDelete,
   onDeviceSettings,
+  onSetUrl,
 }) {
   const s = home.schedule;
   const p = home.protect;
@@ -115,6 +173,7 @@ export default function AutoTab({
         device={home.device}
         busy={busy}
         onPatch={onDeviceSettings}
+        onSetUrl={onSetUrl}
       />
 
       <div className="panel">
