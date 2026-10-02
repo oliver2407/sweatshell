@@ -65,16 +65,46 @@ pytest
 
 ## How the pieces fit
 
+The firmware on the roof unit is a **web server**, not a client — it serves `/data`
+and takes commands on `/cmd`. The backend goes to it:
+
 ```
-ESP32  --POST /api/reading-->  FastAPI  --SQLite-->  /api/state  -->  dashboard
-       <--GET /api/pump/command--            (polled every 2s)
+ESP32  <--GET /data----  FastAPI  --SQLite-->  /api/home  -->  app
+       <--GET /cmd?a=--             (polled every 2s)
 ```
 
-Polling, not MQTT or WebSockets. On venue wifi a dropped socket is a dead dashboard;
-a dropped poll is 2 seconds of staleness. There is no broker to babysit.
+`backend/bridge.py` is the only file that knows both vocabularies. It polls the
+device, translates each reading into the shape the rest of the app already uses, and
+forwards any pending pump or roller command. No firmware change was needed and none
+was made.
 
-The device holds no logic. Thresholds live in the backend, so changing when the gel
-gets watered is a toggle on the dashboard rather than a reflash.
+A device that posts to `/api/reading` instead still works; that path is unchanged and
+the simulator uses it.
+
+### One controller, not two
+
+The firmware has its own auto mode — roll out above a temperature, roll up below
+another, pump when the gel is dry. The backend has a schedule, a forecast and a wind
+rule. Left both on they fight: the clock rolls the sheet out at 8am and the
+thermostat rolls it straight back up because the morning is still cool, and neither
+is wrong.
+
+So when the bridge takes over it puts the device into manual mode. Set
+`take_control: false` on `/api/bridge` to leave the device in charge instead — but
+pick one.
+
+### Testing it without the hardware
+
+`backend/fake_esp.py` serves the firmware's own JSON shape on a local port:
+
+```bash
+python fake_esp.py --port 8123
+curl -X PATCH localhost:8000/api/bridge -H 'Content-Type: application/json' \
+  -d '{"enabled":true,"url":"http://127.0.0.1:8123"}'
+```
+
+It exists so the bridge can be exercised on the bench, and so that when something
+breaks it is possible to tell whether the device changed or the translation did.
 
 ### Two audiences, two sets of endpoints
 

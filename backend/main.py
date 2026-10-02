@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+import bridge
 import cooling
 import db
 import forecast
@@ -162,6 +163,10 @@ _protect_fired_for: float | None = None  # start of the risk window we acted on
 
 # Maintenance. The gel softens over months and wants one spray of the setting
 # solution to firm up again.
+# Where the roof unit lives and how often to ask it. Persisted like everything else
+# the person sets, so a restart does not lose the device's address.
+bridge_cfg = db.load_setting("bridge", bridge.DEFAULTS)
+
 maintenance = db.load_setting(
     "maintenance",
     {
@@ -522,6 +527,64 @@ def tick_protect() -> None:
         _queue_sheet("up", f"Rolled up to protect the sheet — {risk['reason']}")
 
 
+def _take_command() -> tuple[float | None, str | None]:
+    """
+    Hand the bridge whatever is queued, and clear it.
+
+    Same contract as the two /command endpoints a self-reporting device would poll:
+    reading a command consumes it, so it cannot be delivered twice.
+    """
+    global _pump_request, _sheet_request
+    pump = _pump_request["seconds"] if _pump_request else None
+    move = _sheet_request
+    _pump_request = None
+    _sheet_request = None
+    return pump, move
+
+
+def _bridge_reading(payload: dict) -> None:
+    """A translated reading from the roof unit, down the same path as any other."""
+    post_reading(Reading(**payload))
+
+
+_bridge = bridge.Bridge(
+    cfg_getter=lambda: config,
+    bridge_cfg_getter=lambda: bridge_cfg,
+    on_reading=_bridge_reading,
+    take_command=_take_command,
+)
+
+
+@app.on_event("startup")
+def _start_bridge() -> None:
+    _bridge.start()
+
+
+class BridgePatch(BaseModel):
+    enabled: bool | None = None
+    url: str | None = None
+    poll_seconds: float | None = None
+    take_control: bool | None = None
+
+
+@app.get("/api/bridge")
+def get_bridge():
+    return {**bridge_cfg, **bridge.status()}
+
+
+@app.patch("/api/bridge")
+def patch_bridge(p: BridgePatch):
+    for k, v in p.model_dump(exclude_none=True).items():
+        bridge_cfg[k] = v
+    db.save_setting("bridge", bridge_cfg)
+    db.log_event(
+        "bridge",
+        f"Roof unit {'connected at ' + bridge_cfg['url'] if bridge_cfg['enabled'] else 'disconnected'}",
+    )
+    _bridge.start()
+    return {**bridge_cfg, **bridge.status()}
+
+
 @app.get("/api/sheet/command")
 def sheet_command():
     """The roller polls this. Returns the pending move and clears it."""
@@ -570,6 +633,25 @@ class ProtectPatch(BaseModel):
     wind_gust_kmh: float | None = None
 
 
+# How far back the app looks when nobody has started a named run.
+HOME_WINDOW_S = 12 * 3600.0
+
+
+def home_readings() -> list[dict]:
+    """
+    What the app charts and totals over.
+
+    A named session when one is running, because that is the bench's unit of work.
+    Otherwise the last twelve hours. Nobody living with a roof covering is going to
+    press "start a run" first, and without this fallback their chart stays empty
+    forever while the roof unit reports perfectly good data.
+    """
+    scope = resolve_scope(None)
+    if scope is not None:
+        return db.session_readings(scope)
+    return db.readings_since(HOME_WINDOW_S)
+
+
 def maintenance_state(fc: dict | None = None) -> dict:
     """
     Days in service, how long until the gel wants its next spray, and once that is
@@ -616,8 +698,7 @@ def home():
 
     inside_c = latest["inside"].get("box3")
     pct = water_percent(latest["gel_mass_g"])
-    scope = resolve_scope(None)
-    readings = db.session_readings(scope) if scope is not None else []
+    readings = home_readings()
     grams = grams_evaporated(readings)
 
     fc = forecast.fetch()
@@ -689,8 +770,7 @@ def home_series(max_points: int = 160):
     The bench comparison lives on /api/series. Here a second line would only raise a
     question the screen is not there to answer.
     """
-    scope = resolve_scope(None)
-    readings = db.session_readings(scope) if scope is not None else []
+    readings = home_readings()
     if len(readings) > max_points:
         step = len(readings) // max_points + 1
         readings = readings[::step]

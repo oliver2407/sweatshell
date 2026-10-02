@@ -133,25 +133,47 @@ def _row_to_reading(row: sqlite3.Row) -> dict:
 
 
 def latest_reading(session_id: int | None = None) -> dict | None:
+    """
+    The most recently *received* reading, by arrival rather than by timestamp.
+
+    A device whose clock is wrong — an ESP32 that never reached an NTP server, or
+    the simulator compressing time — can stamp a reading hours into the future, and
+    ordering by ts then pins the app to that row forever while live data arrives
+    behind it. Timestamps are for the chart's x-axis; arrival order is what "now"
+    means.
+    """
     if session_id is not None:
         row = _conn.execute(
-            "SELECT * FROM readings WHERE session_id = ? ORDER BY ts DESC LIMIT 1",
+            "SELECT * FROM readings WHERE session_id = ? ORDER BY id DESC LIMIT 1",
             (session_id,),
         ).fetchone()
     else:
-        row = _conn.execute("SELECT * FROM readings ORDER BY ts DESC LIMIT 1").fetchone()
+        row = _conn.execute("SELECT * FROM readings ORDER BY id DESC LIMIT 1").fetchone()
     return _row_to_reading(row) if row else None
 
 
+# A little slack for a device clock that is a minute off, which is normal.
+CLOCK_SKEW_S = 120.0
+
+
 def readings_since(seconds: float, session_id: int | None = None) -> list[dict]:
-    since = time.time() - seconds
+    """
+    A window of recent readings — bounded at both ends.
+
+    The upper bound matters. A device with no NTP, or the simulator compressing
+    time, can stamp rows hours ahead, and "everything since 12 hours ago" happily
+    includes next Tuesday. Those rows then sit at the right-hand end of every chart
+    and nothing more recent can ever get past them.
+    """
+    now = time.time()
     if session_id is not None:
         rows = _conn.execute(
             "SELECT * FROM readings WHERE session_id = ? ORDER BY ts ASC", (session_id,)
         ).fetchall()
     else:
         rows = _conn.execute(
-            "SELECT * FROM readings WHERE ts >= ? ORDER BY ts ASC", (since,)
+            "SELECT * FROM readings WHERE ts >= ? AND ts <= ? ORDER BY ts ASC",
+            (now - seconds, now + CLOCK_SKEW_S),
         ).fetchall()
     return [_row_to_reading(r) for r in rows]
 
