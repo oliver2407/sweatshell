@@ -52,6 +52,9 @@ export const api = {
   setAutoWater: (on) =>
     req("/api/config", { method: "PATCH", body: JSON.stringify({ auto_pump: on }) }),
   moveSheet: (out) => req(`/api/sheet?out=${out}`, { method: "POST" }),
+  setMode: (auto) => req(`/api/mode?auto=${auto}`, { method: "POST" }),
+  setDeviceSettings: (patch) =>
+    req("/api/device/settings", { method: "PATCH", body: JSON.stringify(patch) }),
   setSchedule: (patch) =>
     req("/api/schedule", { method: "PATCH", body: JSON.stringify(patch) }),
   addWindow: () => req("/api/schedule/windows", { method: "POST" }),

@@ -468,6 +468,19 @@ def tick_schedule() -> None:
     """
     global _last_desired
 
+    # The device's own thresholds and this clock are alternatives, not layers. While
+    # the device is deciding, the schedule keeps its hands off entirely — otherwise
+    # the clock rolls the sheet out at 8am and the thermostat rolls it straight back
+    # up because the morning is still cool, and neither of them is wrong.
+    if bridge.status().get("device_mode") == "auto":
+        # Keep following what the clock would want, without acting on it. Clearing
+        # this instead made the first tick after leaving auto a "first look", which
+        # aligned the sheet immediately — so pressing Roll up while a window was
+        # open rolled it straight back out. Tracking it means control returns with
+        # the sheet where the person put it, until the next real boundary.
+        _last_desired = desired_sheet_state()
+        return
+
     want_out = desired_sheet_state()
     if want_out is None:
         _last_desired = None
@@ -564,7 +577,51 @@ class BridgePatch(BaseModel):
     enabled: bool | None = None
     url: str | None = None
     poll_seconds: float | None = None
-    take_control: bool | None = None
+
+
+class DeviceSettingsPatch(BaseModel):
+    """
+    The firmware's own thresholds, named as the firmware names them.
+
+    hot    roll out when the air outside goes above this
+    cool   roll up below this
+    danger pump only when it is at least this warm
+    dry    pump when the gel is below this percent
+    """
+
+    hot: float | None = None
+    cool: float | None = None
+    danger: float | None = None
+    dry: int | None = None
+    hum: int | None = None
+
+
+@app.post("/api/mode")
+def set_mode(auto: bool):
+    """
+    Hand control to the device's thresholds, or take it back.
+
+    This is the Auto button. It is not the clock schedule: the schedule is the other
+    way of deciding, for anyone who would rather name an hour than a temperature,
+    and it stands down while the device is in auto.
+    """
+    bridge.set_mode("auto" if auto else "manual")
+    db.log_event(
+        "mode",
+        "Auto: the roof unit decides from the outside temperature"
+        if auto
+        else "Manual: you decide",
+    )
+    return {"ok": True, "requested": "auto" if auto else "manual"}
+
+
+@app.patch("/api/device/settings")
+def patch_device_settings(p: DeviceSettingsPatch):
+    """Write thresholds through to the firmware, which owns them."""
+    patch = p.model_dump(exclude_none=True)
+    bridge.set_device_settings(patch)
+    db.log_event("device", f"Roof unit settings: {patch}")
+    return {"ok": True, "queued": patch}
 
 
 @app.get("/api/bridge")
@@ -750,6 +807,13 @@ def home():
         "water_threshold_pct": config["pump_threshold_pct"],
         "status": status,
         "advice": advice,
+        # The roof unit's own mode and thresholds. This is what the Auto button
+        # drives, and it is the device's answer rather than this app's copy of it.
+        "device": {
+            "mode": bridge.status().get("device_mode"),
+            "settings": bridge.status().get("device_settings"),
+            "connected": bridge.status().get("connected"),
+        },
         "schedule": schedule_state(),
         "protect": {
             **protect,

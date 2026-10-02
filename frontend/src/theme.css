@@ -924,3 +924,48 @@ body {
     padding: 0 24px 0 0;
   }
 }
+
+/* --- device thresholds ------------------------------------------------- */
+
+.thrs {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+/*
+ * The unit column is a fixed width, not `auto`. With `auto` each row sized its own
+ * third column to its own text — "°C outside" against "%" — so the input boxes
+ * stepped left and right down the list and nothing lined up. These are four numbers
+ * read as a set; they have to sit in one column.
+ */
+.thr {
+  display: grid;
+  grid-template-columns: 1fr 82px 70px;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+}
+
+.thr-l {
+  font-size: 15px;
+}
+
+.thr-n {
+  font-size: 13px;
+  line-height: 1.25;
+  color: var(--ink-dim);
+}
+
+.thr input {
+  font: inherit;
+  font-size: 15px;
+  padding: 10px;
+  min-height: 46px;
+  width: 100%;
+  text-align: right;
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--panel-line);
+  border-radius: 11px;
+}

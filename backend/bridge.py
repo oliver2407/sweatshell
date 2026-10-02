@@ -10,15 +10,21 @@ app already understands, and forwards any pending pump or roller command to /cmd
 Nothing in the firmware changes. Nothing in the app changes. This file is the only
 place that knows both vocabularies.
 
-ONE CONTROLLER, NOT TWO
+WHO DECIDES
 
-The firmware has its own auto mode: roll out above hotC, roll up below coolC, pump
-when the gel is dry. The backend has a schedule, a forecast and a wind rule. Left
-both on, they fight — the clock rolls the sheet out at 8am and the thermostat rolls
-it back up because the morning is still cool, and neither is wrong.
+The device's own auto mode is the primary one: roll out when the air outside goes
+above hotC, roll up below coolC, pump when the gel is dry. It lives in the firmware,
+it already works on real hardware, and it triggers on OUTSIDE temperature — which
+leads the heat rather than lagging it, so it moves the sheet before the house is hot
+rather than after.
 
-So the bridge puts the device into manual mode when it takes over, and says so.
-Whoever is deciding, it is one of them.
+The backend's clock schedule is the other option, for anyone who would rather say
+"out at seven, up at eight" than pick a number in degrees.
+
+They are alternatives, not layers. Running both means the clock rolls the sheet out
+at 8am and the thermostat rolls it straight back up because the morning is still
+cool, and neither is wrong. So the schedule stands down whenever the device is in
+auto, and the app's Auto button is what hands control back to the device.
 """
 
 import threading
@@ -37,7 +43,6 @@ DEFAULTS = {
     "enabled": True,
     "url": "http://172.20.10.10",  # as printed on the device's serial at boot
     "poll_seconds": 3.0,
-    "take_control": True,  # put the device in manual so the schedule is in charge
 }
 
 # What the firmware calls things, and what this app calls them.
@@ -56,8 +61,24 @@ _state = {
     "last_ok": None,  # epoch of the last good poll
     "last_error": None,  # what went wrong, in words
     "device_mode": None,  # "auto" or "manual", as the device reports it
+    "device_settings": None,  # the firmware's own thresholds, last seen
     "polls": 0,
 }
+
+# Queued for the device on the next poll. The firmware owns its thresholds; the app
+# edits them through /set rather than keeping a second copy that has to agree.
+_want_mode: str | None = None
+_want_settings: dict = {}
+
+
+def set_mode(mode: str) -> None:
+    """auto hands control to the device's thresholds; manual takes it back."""
+    global _want_mode
+    _want_mode = mode if mode in ("auto", "manual") else None
+
+
+def set_device_settings(patch: dict) -> None:
+    _want_settings.update(patch)
 
 
 def explain(exc: Exception, url: str) -> str:
@@ -182,12 +203,22 @@ class Bridge:
                 self._stop.wait(max(1.0, float(b.get("poll_seconds", 3.0))))
 
     def _tick(self, client: httpx.Client, b: dict) -> None:
+        global _want_mode
         base = b["url"].rstrip("/")
+
+        # The firmware owns its thresholds. Editing them here writes through to the
+        # device rather than keeping a second copy in this app that has to agree
+        # with the first.
+        if _want_settings:
+            client.get(f"{base}/set", params=dict(_want_settings))
+            _want_settings.clear()
 
         # Hand the device any command the app has queued, before reading, so the
         # reading that comes back already reflects it.
         pump_seconds, sheet_move = self._take()
         if sheet_move in ("out", "up"):
+            # The firmware drops to manual on any roll command of its own accord,
+            # which is the behaviour we want: touching a button takes control.
             client.get(f"{base}/cmd", params={"a": sheet_move})
         if pump_seconds:
             # The firmware's pulse length is fixed in its own config; we ask for a
@@ -207,14 +238,16 @@ class Bridge:
             raise ValueError("response is not a SweatShell reading")
 
         _state["device_mode"] = d.get("mode")
+        _state["device_settings"] = d.get("settings")
         _state["last_ok"] = time.time()
         _state["last_error"] = None
         _state["polls"] += 1
 
-        # Claim control once per connection rather than every poll, so the device's
-        # log does not fill with the same line.
-        if b.get("take_control") and not self._claimed and d.get("mode") == "auto":
-            client.get(f"{base}/cmd", params={"a": "manual"})
-            self._claimed = True
+        # A mode change is sent after the read, so the reported mode above is what
+        # the device actually had, not what we are about to ask for. The next poll
+        # confirms it took.
+        if _want_mode and d.get("mode") != _want_mode:
+            client.get(f"{base}/cmd", params={"a": _want_mode})
+        _want_mode = None
 
         self._on_reading(_to_reading(d, self._cfg()))

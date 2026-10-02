@@ -222,7 +222,7 @@ export default function App() {
                 busy={busy}
                 wide
                 onMove={(out) => act(() => api.moveSheet(out))}
-                onSchedule={(patch) => act(() => api.setSchedule(patch))}
+                onMode={(auto) => act(() => api.setMode(auto))}
                 onWater={() => act(() => api.water())}
               />
             </section>
@@ -237,6 +237,7 @@ export default function App() {
                 onWindowPatch={(id, patch) => act(() => api.setWindow(id, patch))}
                 onWindowAdd={() => act(() => api.addWindow())}
                 onWindowDelete={(id) => act(() => api.deleteWindow(id))}
+                onDeviceSettings={(p) => act(() => api.setDeviceSettings(p))}
               />
             </section>
           </div>
@@ -245,7 +246,7 @@ export default function App() {
             home={home}
             busy={busy}
             onMove={(out) => act(() => api.moveSheet(out))}
-            onSchedule={(patch) => act(() => api.setSchedule(patch))}
+            onMode={(auto) => act(() => api.setMode(auto))}
             onWater={() => act(() => api.water())}
           />
         ) : tab === "history" ? (
@@ -260,6 +261,7 @@ export default function App() {
             onWindowPatch={(id, patch) => act(() => api.setWindow(id, patch))}
             onWindowAdd={() => act(() => api.addWindow())}
             onWindowDelete={(id) => act(() => api.deleteWindow(id))}
+            onDeviceSettings={(p) => act(() => api.setDeviceSettings(p))}
           />
         ) : (
           <CareTab

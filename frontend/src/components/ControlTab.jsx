@@ -21,6 +21,16 @@ function hhmmTo12(hhmm) {
 
 /** One line saying who is deciding, and what happens next. */
 function modeSentence(home) {
+  // The roof unit's own thresholds come first: they are the primary way this runs,
+  // they trigger on the air outside — which leads the heat rather than lagging it —
+  // and while they are on nothing else touches the sheet.
+  if (home.device?.mode === "auto") {
+    const s = home.device.settings;
+    return s
+      ? `The roof unit is deciding — out above ${s.hot}°C outside, up below ${s.cool}°C.`
+      : "The roof unit is deciding from the temperature outside.";
+  }
+
   if (!home.schedule.enabled) {
     return home.sheet_out
       ? "You’re deciding. The sheet stays out until you move it."
@@ -53,9 +63,12 @@ function modeSentence(home) {
     : `On a schedule — ${verb} at ${when}.`;
 }
 
-export default function ControlTab({ home, busy, onMove, onSchedule, onWater, wide }) {
+export default function ControlTab({ home, busy, onMove, onMode, onWater, wide }) {
   const out = home.sheet_out;
-  const auto = home.schedule.enabled;
+  // Auto means the roof unit's own temperature thresholds are driving. The clock
+  // schedule is the other option and lives on its own tab; it stands down while
+  // this is on.
+  const auto = home.device?.mode === "auto";
   const watering = home.pump_on || home.pump_queued;
 
   return (
@@ -88,8 +101,8 @@ export default function ControlTab({ home, busy, onMove, onSchedule, onWater, wi
         <button
           className="mode"
           aria-pressed={auto}
-          disabled={busy}
-          onClick={() => onSchedule({ enabled: !auto })}
+          disabled={busy || !home.device?.connected}
+          onClick={() => onMode(!auto)}
         >
           <span className="ring">
             <Clock />

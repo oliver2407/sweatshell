@@ -1,4 +1,73 @@
+import { useEffect, useState } from "react";
 import ScheduleList from "./ScheduleList.jsx";
+
+/*
+ * The roof unit's own thresholds, which is what Auto on the control screen runs.
+ *
+ * They are edited here but they are not stored here — each change is written
+ * through to the firmware, which owns them. A second copy in this app would be one
+ * more thing that has to agree with the first.
+ */
+function DeviceThresholds({ device, busy, onPatch }) {
+  const s = device?.settings;
+  const [draft, setDraft] = useState({});
+
+  useEffect(() => setDraft({}), [s?.hot, s?.cool, s?.danger, s?.dry_pct]);
+
+  if (!device?.connected || !s) {
+    return (
+      <div className="panel">
+        <h2>Automatic by temperature</h2>
+        <p>
+          Not connected to the roof unit, so its thresholds can’t be read or changed
+          from here.
+        </p>
+      </div>
+    );
+  }
+
+  const field = (key, label, value, note, step = "0.5") => (
+    <label className="thr">
+      <span className="thr-l">{label}</span>
+      <input
+        type="number"
+        step={step}
+        disabled={busy}
+        value={draft[key] ?? value}
+        onChange={(e) => setDraft({ ...draft, [key]: e.target.value })}
+        onBlur={() =>
+          draft[key] !== undefined &&
+          Number(draft[key]) !== Number(value) &&
+          onPatch({ [key]: Number(draft[key]) })
+        }
+      />
+      <span className="thr-n">{note}</span>
+    </label>
+  );
+
+  return (
+    <div className="panel">
+      <h2>Automatic by temperature</h2>
+      <p>
+        What the roof unit decides on its own when Auto is on. It watches the air
+        outside, which warms before the house does, so the sheet is already out by
+        the time the heat arrives.
+      </p>
+
+      <div className="thrs">
+        {field("hot", "Roll out above", s.hot, "°C outside")}
+        {field("cool", "Roll up below", s.cool, "°C outside")}
+        {field("danger", "Only sweat above", s.danger, "°C")}
+        {field("dry", "Top up below", s.dry_pct, "% water", "1")}
+      </div>
+
+      <p className="tiny">
+        Stored on the roof unit itself, so they survive a restart of this app and
+        apply even if it is closed.
+      </p>
+    </div>
+  );
+}
 
 /*
  * Everything the system does without being asked.
@@ -23,12 +92,20 @@ export default function AutoTab({
   onWindowPatch,
   onWindowAdd,
   onWindowDelete,
+  onDeviceSettings,
 }) {
   const s = home.schedule;
   const p = home.protect;
+  const deviceDriving = home.device?.mode === "auto";
 
   return (
     <>
+      <DeviceThresholds
+        device={home.device}
+        busy={busy}
+        onPatch={onDeviceSettings}
+      />
+
       <div className="panel">
         <div className="row">
           <div>
@@ -51,7 +128,9 @@ export default function AutoTab({
           <div>
             <div className="lead">Roll on a schedule</div>
             <div className="note">
-              {s.enabled
+              {deviceDriving
+                ? "Standing by — the roof unit is deciding by temperature"
+                : s.enabled
                 ? `${(s.windows ?? []).filter((w) => w.enabled).length} time${
                     (s.windows ?? []).filter((w) => w.enabled).length === 1 ? "" : "s"
                   } set`
