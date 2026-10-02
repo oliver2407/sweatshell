@@ -70,12 +70,14 @@ body {
   background: linear-gradient(170deg, var(--field-top) 0%, var(--field-bottom) 78%);
 }
 
-@media (min-width: 480px) {
+@media (min-width: 480px) and (max-width: 899px) {
   .shell {
     border-left: 1px solid rgba(255, 255, 255, 0.07);
     border-right: 1px solid rgba(255, 255, 255, 0.07);
   }
 }
+
+
 
 /* --- header ----------------------------------------------------------- */
 
@@ -384,6 +386,29 @@ body {
 
 .tab[aria-selected="true"] {
   color: var(--ink);
+}
+
+/*
+ * The wordmark only appears where there is a sidebar to put it in. On a phone the
+ * header already says whose roof this is, and the name would cost a line of the one
+ * screen that must not scroll.
+ *
+ * Declared here, above the desktop block at the end of this file, because the
+ * override lives there. Written the other way round the base rule wins on source
+ * order and the thing never appears — which is exactly what happened the first time.
+ */
+.brand {
+  display: none;
+  padding: 2px 14px 20px;
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+/* Capped on desktop; full width on a phone, where it is the only column there is. */
+.column {
+  width: 100%;
 }
 
 /* --- panels on the inner tabs ----------------------------------------- */
@@ -763,4 +788,116 @@ body {
 :focus-visible {
   outline: 2px solid var(--gel);
   outline-offset: 2px;
+}
+
+/*
+ * Desktop.
+ *
+ * The phone layout stretched to 1400px would be one narrow column with a tab bar
+ * pinned to the bottom of a screen nobody's thumb reaches. So the bar becomes a
+ * sidebar — the same four places, now with room for their names — and the control
+ * view puts the chart beside the dial instead of a tab away.
+ *
+ * It is the same four sections either way. Only their arrangement changes.
+ */
+@media (min-width: 900px) {
+  .shell {
+    max-width: 1180px;
+    display: grid;
+    grid-template-columns: 216px 1fr;
+    grid-template-areas:
+      "nav head"
+      "nav body";
+    grid-template-rows: auto 1fr;
+    border-left: 1px solid rgba(255, 255, 255, 0.07);
+    border-right: 1px solid rgba(255, 255, 255, 0.07);
+  }
+
+  .bar {
+    grid-area: head;
+    padding: 26px 32px 10px;
+  }
+
+  .bar .where {
+    font-size: 21px;
+  }
+
+  .body {
+    grid-area: body;
+    padding: 0 32px 32px;
+  }
+
+  .tabs {
+    grid-area: nav;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 4px;
+    padding: 26px 14px;
+    border-top: none;
+    border-right: 1px solid var(--panel-line);
+    background: rgba(0, 0, 0, 0.1);
+  }
+
+  .tab {
+    flex: none;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 13px;
+    padding: 12px 14px;
+    min-height: 48px;
+    font-size: 14.5px;
+    border-radius: 11px;
+    text-align: left;
+  }
+
+  .tab[aria-selected="true"] {
+    background: var(--panel);
+  }
+
+  /* Alerts move to the top-right. Bottom-centre is a phone convention and on a
+     wide screen it lands nowhere near where the eye is working. */
+  .alerts {
+    top: 22px;
+    bottom: auto;
+    left: auto;
+    right: 0;
+    width: 420px;
+    padding: 0 32px 0 0;
+  }
+
+  /* Controls one side, what has been happening the other. */
+  .split {
+    display: grid;
+    grid-template-columns: minmax(320px, 1fr) minmax(340px, 1.05fr);
+    gap: 28px;
+    align-items: start;
+  }
+
+  .split-main {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .split-side > .panel:first-child {
+    margin-top: 0;
+  }
+
+  .modes {
+    padding-top: 10px;
+  }
+
+  .act {
+    margin: 26px auto 0;
+  }
+
+  /* Settings and reading matter get a column, not the whole window. Inside the
+     control view's side column the panels fill their track, which is already
+     narrow enough. */
+  .column {
+    max-width: 640px;
+  }
+
+  .brand {
+    display: block;
+  }
 }

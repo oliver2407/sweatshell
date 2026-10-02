@@ -5,6 +5,7 @@ import HistoryTab from "./components/HistoryTab.jsx";
 import AutoTab from "./components/AutoTab.jsx";
 import CareTab from "./components/CareTab.jsx";
 import { Drop, Chart, Clock, Leaf } from "./components/icons.jsx";
+import useIsWide from "./useIsWide.js";
 
 /*
  * A control panel, not a page.
@@ -56,6 +57,7 @@ export default function App() {
   const [offline, setOffline] = useState(false);
   const [dismissed, setDismissed] = useState([]);
   const [failed, setFailed] = useState(null);
+  const wide = useIsWide();
 
   const refresh = useCallback(async () => {
     try {
@@ -187,6 +189,20 @@ export default function App() {
           <ControlTab
             home={home}
             busy={busy}
+            wide={wide}
+            // On a wide screen the chart rides along beside the controls, so the
+            // trend and the current reading are on screen together.
+            aside={
+              <>
+                <HistoryTab series={series} />
+                <CareTab
+                  m={home.maintenance}
+                  busy={busy}
+                  onDone={() => act(() => api.serviced())}
+                  compact
+                />
+              </>
+            }
             onMove={(out) => act(() => api.moveSheet(out))}
             onSchedule={(patch) => act(() => api.setSchedule(patch))}
             onWater={() => act(() => api.water())}
@@ -194,26 +210,35 @@ export default function App() {
         ) : tab === "history" ? (
           <HistoryTab series={series} />
         ) : tab === "auto" ? (
-          <AutoTab
-            home={home}
-            busy={busy}
-            onSchedule={(patch) => act(() => api.setSchedule(patch))}
-            onProtect={(patch) => act(() => api.setProtect(patch))}
-            onAutoWater={(on) => act(() => api.setAutoWater(on))}
-            onWindowPatch={(id, patch) => act(() => api.setWindow(id, patch))}
-            onWindowAdd={() => act(() => api.addWindow())}
-            onWindowDelete={(id) => act(() => api.deleteWindow(id))}
-          />
+          // Settings and reading matter are capped to a column. Stretching a time
+          // input across 1400px does not make it easier to set, only longer to
+          // cross, and a row of seven day chips a hand-span wide is a phone layout
+          // pulled out of shape.
+          <div className="column">
+            <AutoTab
+              home={home}
+              busy={busy}
+              onSchedule={(patch) => act(() => api.setSchedule(patch))}
+              onProtect={(patch) => act(() => api.setProtect(patch))}
+              onAutoWater={(on) => act(() => api.setAutoWater(on))}
+              onWindowPatch={(id, patch) => act(() => api.setWindow(id, patch))}
+              onWindowAdd={() => act(() => api.addWindow())}
+              onWindowDelete={(id) => act(() => api.deleteWindow(id))}
+            />
+          </div>
         ) : (
-          <CareTab
-            m={home.maintenance}
-            busy={busy}
-            onDone={() => act(() => api.serviced())}
-          />
+          <div className="column">
+            <CareTab
+              m={home.maintenance}
+              busy={busy}
+              onDone={() => act(() => api.serviced())}
+            />
+          </div>
         )}
       </div>
 
       <nav className="tabs" role="tablist">
+        <span className="brand">SweatShell</span>
         {TABS.map(({ id, label, Icon }) => (
           <button
             key={id}

@@ -19,7 +19,6 @@ import { fmt } from "../api.js";
  * reading never has to be read upside down.
  */
 
-const SIZE = 248;
 const STROKE = 13;
 const START = 135; // degrees, clockwise from 3 o'clock
 const SWEEP = 270;
@@ -45,11 +44,12 @@ function waterWord(pct, sheetOut, stale) {
   return { label: "Empty", tone: "var(--crit)" };
 }
 
-export default function Dial({ home }) {
+export default function Dial({ home, size = 248 }) {
   const pct = Math.max(0, Math.min(100, home.water_pct ?? 0));
   const known = home.water_pct != null && !home.stale;
   const state = waterWord(home.water_pct, home.sheet_out, home.stale);
 
+  const SIZE = size;
   const c = SIZE / 2;
   const r = c - STROKE / 2 - 2;
   const end = START + (SWEEP * pct) / 100;

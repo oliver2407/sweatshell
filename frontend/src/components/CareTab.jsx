@@ -18,7 +18,12 @@ function formatDay(iso) {
   return d.toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" });
 }
 
-export default function CareTab({ m, busy, onDone }) {
+/*
+ * `compact` drops the care rules. On a wide screen the countdown rides along beside
+ * the controls, where it is a live number worth seeing; the rules are reference
+ * material that belongs on its own tab rather than padding out a column.
+ */
+export default function CareTab({ m, busy, onDone, compact }) {
   const pct = Math.round((m?.progress ?? 0) * 100);
   const overdue = m?.overdue;
 
@@ -65,14 +70,16 @@ export default function CareTab({ m, busy, onDone }) {
         </p>
       </div>
 
-      <div className="panel">
-        <h2>Looking after it</h2>
-        <ul className="care">
-          {RULES.map((r) => (
-            <li key={r}>{r}</li>
-          ))}
-        </ul>
-      </div>
+      {!compact && (
+        <div className="panel">
+          <h2>Looking after it</h2>
+          <ul className="care">
+            {RULES.map((r) => (
+              <li key={r}>{r}</li>
+            ))}
+          </ul>
+        </div>
+      )}
     </>
   );
 }
