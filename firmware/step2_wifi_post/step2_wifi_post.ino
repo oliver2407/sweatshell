@@ -6,6 +6,26 @@
  * humidity sensor, no pump. One thing at a time, so when it breaks you know which
  * thing broke.
  *
+ * TWO COMPUTERS
+ *
+ * The machine that flashes this sketch and the machine that runs the backend do not
+ * have to be the same one, and usually are not. The ESP32 has no idea which computer
+ * compiled it. All that matters is that API_BASE points at whichever machine is
+ * running `uvicorn`, and that the ESP32 can reach it over the network.
+ *
+ * So the wifi name, the wifi password and the API address are NOT baked into the
+ * binary. They are saved on the ESP32 itself and can be retyped over the serial
+ * port, from any computer, with no toolchain and no reflash:
+ *
+ *     show                              what is saved right now
+ *     api http://192.168.1.50:8000      point it at a different machine
+ *     wifi MyNetwork my-password        join a different network
+ *     reboot
+ *
+ * On a Mac that needs nothing installed:  screen /dev/cu.usbserial-0001 115200
+ * (quit with Ctrl-A then K). The Arduino IDE's Serial Monitor works too, as does
+ * PuTTY on Windows. Whoever has the cable can retarget it.
+ *
  * Wiring is unchanged from the step 1 test:
  *   DS18B20  S  -> GPIO 4
  *   DS18B20  +  -> 3V3
@@ -22,16 +42,19 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <ArduinoJson.h>
+#include <Preferences.h>
 
-// ---------------------------------------------------------------- fill these in
+// ------------------------------------------------- defaults, used on a fresh chip
 
-const char *WIFI_SSID = "YOUR_WIFI";
-const char *WIFI_PASS = "YOUR_PASSWORD";
+// These are only the starting values. Once anything is set over serial, the saved
+// value wins and editing these does nothing until the ESP32 is erased.
+const char *DEFAULT_SSID = "YOUR_WIFI";
+const char *DEFAULT_PASS = "YOUR_PASSWORD";
 
 /*
- * The laptop running the backend, as the ESP32 sees it on the network.
+ * The machine running the backend, as the ESP32 sees it on the network.
  *
- * This must be the laptop's LAN address (192.168.x.x or 10.x.x.x), NOT localhost.
+ * This must be that machine's LAN address (192.168.x.x or 10.x.x.x), NOT localhost.
  * To the ESP32, 127.0.0.1 means the ESP32 itself, so it will try to call itself and
  * fail with -1 forever.
  *
@@ -41,7 +64,7 @@ const char *WIFI_PASS = "YOUR_PASSWORD";
  * And start the backend so it listens to the network, not just to itself:
  *   uvicorn main:app --host 0.0.0.0 --port 8000
  */
-const char *API_BASE = "http://192.168.1.50:8000";
+const char *DEFAULT_API = "http://192.168.1.50:8000";
 
 // --------------------------------------------------------------------- hardware
 
@@ -49,9 +72,95 @@ const char *API_BASE = "http://192.168.1.50:8000";
 
 OneWire oneWire(PIN_ONEWIRE);
 DallasTemperature sensors(&oneWire);
+Preferences prefs;
+
+String ssid, pass, apiBase;
 
 const unsigned long POST_EVERY_MS = 3000;
+const unsigned long WIFI_TIMEOUT_MS = 20000;
 unsigned long lastPost = 0;
+
+// ------------------------------------------------------------------- settings
+
+void loadSettings() {
+  prefs.begin("sweatshell", false);
+  ssid = prefs.getString("ssid", DEFAULT_SSID);
+  pass = prefs.getString("pass", DEFAULT_PASS);
+  apiBase = prefs.getString("api", DEFAULT_API);
+}
+
+void showSettings() {
+  Serial.println("--- settings ---");
+  Serial.printf("  wifi : %s\n", ssid.c_str());
+  Serial.printf("  api  : %s\n", apiBase.c_str());
+  Serial.printf("  state: %s\n",
+                WiFi.status() == WL_CONNECTED
+                    ? WiFi.localIP().toString().c_str()
+                    : "not connected");
+  Serial.println("  commands: show | api <url> | wifi <ssid> <password> | reboot");
+  Serial.println("----------------");
+}
+
+void connectWifi() {
+  Serial.printf("Joining \"%s\"", ssid.c_str());
+  WiFi.disconnect(true);
+  WiFi.begin(ssid.c_str(), pass.c_str());
+
+  unsigned long started = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - started < WIFI_TIMEOUT_MS) {
+    delay(400);
+    Serial.print(".");
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.printf("\nConnected. This ESP32 is %s\n", WiFi.localIP().toString().c_str());
+  } else {
+    // Deliberately not an infinite loop. A wrong password used to mean reflashing,
+    // because the sketch never reached the point where it could listen for a new
+    // one. Giving up after twenty seconds leaves the serial commands reachable.
+    Serial.println("\nCould not join. Fix it over serial:");
+    Serial.println("  wifi <ssid> <password>");
+  }
+}
+
+/** Serial commands. Reachable whether or not the wifi ever came up. */
+void handleSerial() {
+  if (!Serial.available()) return;
+  String line = Serial.readStringUntil('\n');
+  line.trim();
+  if (line.length() == 0) return;
+
+  if (line == "show") {
+    showSettings();
+  } else if (line == "reboot") {
+    Serial.println("Rebooting…");
+    delay(200);
+    ESP.restart();
+  } else if (line.startsWith("api ")) {
+    apiBase = line.substring(4);
+    apiBase.trim();
+    prefs.putString("api", apiBase);
+    Serial.printf("Saved. Now posting to %s\n", apiBase.c_str());
+  } else if (line.startsWith("wifi ")) {
+    String rest = line.substring(5);
+    rest.trim();
+    int sp = rest.indexOf(' ');
+    if (sp < 0) {
+      Serial.println("Need both: wifi <ssid> <password>");
+      return;
+    }
+    ssid = rest.substring(0, sp);
+    // Everything after the first space is the password, so a password containing
+    // spaces survives.
+    pass = rest.substring(sp + 1);
+    prefs.putString("ssid", ssid);
+    prefs.putString("pass", pass);
+    Serial.println("Saved. Reconnecting…");
+    connectWifi();
+  } else {
+    Serial.println("Unknown. Try: show | api <url> | wifi <ssid> <password> | reboot");
+  }
+}
 
 // ------------------------------------------------------------------------ setup
 
@@ -66,19 +175,16 @@ void setup() {
     Serial.println("No sensor. Check S is on GPIO 4 before going further.");
   }
 
-  WiFi.begin(WIFI_SSID, WIFI_PASS);
-  Serial.print("Joining wifi");
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(400);
-    Serial.print(".");
-  }
-  Serial.printf("\nConnected. This ESP32 is %s\n", WiFi.localIP().toString().c_str());
-  Serial.printf("Posting to %s every %lus\n\n", API_BASE, POST_EVERY_MS / 1000);
+  loadSettings();
+  showSettings();
+  connectWifi();
 }
 
 // ------------------------------------------------------------------------- loop
 
 void loop() {
+  handleSerial();
+
   if (millis() - lastPost < POST_EVERY_MS) {
     delay(20);
     return;
@@ -86,8 +192,7 @@ void loop() {
   lastPost = millis();
 
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("Wifi dropped, reconnecting…");
-    WiFi.reconnect();
+    Serial.println("No wifi. Type: wifi <ssid> <password>");
     return;
   }
 
@@ -120,7 +225,7 @@ void loop() {
   serializeJson(doc, body);
 
   HTTPClient http;
-  http.begin(String(API_BASE) + "/api/reading");
+  http.begin(apiBase + "/api/reading");
   http.addHeader("Content-Type", "application/json");
   int code = http.POST(body);
 
