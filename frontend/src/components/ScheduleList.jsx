@@ -81,6 +81,7 @@ function Entry({ w, active, busy, onPatch, onDelete }) {
   const [outAt, setOutAt] = useState(w.out_at);
   const [upAt, setUpAt] = useState(w.up_at);
   const [open, setOpen] = useState(false);
+  const [confirming, setConfirming] = useState(false);
 
   useEffect(() => setOutAt(w.out_at), [w.out_at]);
   useEffect(() => setUpAt(w.up_at), [w.up_at]);
@@ -185,36 +186,54 @@ function Entry({ w, active, busy, onPatch, onDelete }) {
         {active && <span className="now"> Running now.</span>}
       </p>
 
-      <button className="link" onClick={() => setOpen(!open)}>
-        {rangePhrase(w)}
-      </button>
-
-      {open && (
-        <>
-          <div className="times">
-            <label>
-              Start date
-              <input
-                type="date"
-                value={w.from ?? ""}
-                disabled={busy}
-                onChange={(e) => onPatch({ date_from: e.target.value })}
-              />
-            </label>
-            <label>
-              End date
-              <input
-                type="date"
-                value={w.to ?? ""}
-                disabled={busy}
-                onChange={(e) => onPatch({ date_to: e.target.value })}
-              />
-            </label>
-          </div>
-          <button className="link danger" disabled={busy} onClick={onDelete}>
-            Remove this time
+      {/*
+        Remove sits here in the open, beside the dates. It used to be tucked inside
+        the date panel, which meant finding it required opening something unrelated
+        first — and someone who wants a schedule gone should not have to go looking
+        for permission to delete it.
+      */}
+      {confirming ? (
+        <div className="confirm">
+          <span>Remove this time?</span>
+          <button className="link" onClick={() => setConfirming(false)}>
+            Keep it
           </button>
-        </>
+          <button className="link danger" disabled={busy} onClick={onDelete}>
+            Remove
+          </button>
+        </div>
+      ) : (
+        <div className="win-foot">
+          <button className="link" onClick={() => setOpen(!open)}>
+            {rangePhrase(w)}
+          </button>
+          <button className="link danger" onClick={() => setConfirming(true)}>
+            Remove
+          </button>
+        </div>
+      )}
+
+      {open && !confirming && (
+        <div className="times">
+          <label>
+            Start date
+            <input
+              type="date"
+              value={w.from ?? ""}
+              disabled={busy}
+              onChange={(e) => onPatch({ date_from: e.target.value })}
+            />
+          </label>
+          <label>
+            End date
+            <input
+              type="date"
+              value={w.to ?? ""}
+              disabled={busy}
+              onChange={(e) => onPatch({ date_to: e.target.value })}
+            />
+          </label>
+        </div>
       )}
     </div>
   );

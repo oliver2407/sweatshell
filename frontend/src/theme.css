@@ -654,6 +654,32 @@ body {
   color: var(--crit);
 }
 
+.win-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+/* Deleting has no undo, so it asks once — inline, where the row is, rather than
+   in a dialog that covers what is being deleted. */
+.confirm {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 13px;
+  color: var(--ink-dim);
+}
+
+.confirm span {
+  flex: 1;
+}
+
+.confirm .link {
+  flex: none;
+  font-weight: 600;
+}
+
 /* Closes the schedule group. Without the rule underneath it, the button read as
    though it belonged to the weather row that follows. */
 .mini.wide {
