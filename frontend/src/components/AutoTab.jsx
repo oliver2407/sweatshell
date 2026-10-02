@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import ScheduleList from "./ScheduleList.jsx";
 
 /*
  * Everything the system does without being asked.
@@ -14,15 +14,18 @@ import { useEffect, useState } from "react";
  * controller here and a thermostat is not.
  */
 
-export default function AutoTab({ home, busy, onSchedule, onProtect, onAutoWater }) {
+export default function AutoTab({
+  home,
+  busy,
+  onSchedule,
+  onProtect,
+  onAutoWater,
+  onWindowPatch,
+  onWindowAdd,
+  onWindowDelete,
+}) {
   const s = home.schedule;
   const p = home.protect;
-
-  const [outAt, setOutAt] = useState(s.roll_out_at);
-  const [upAt, setUpAt] = useState(s.roll_up_at);
-
-  useEffect(() => setOutAt(s.roll_out_at), [s.roll_out_at]);
-  useEffect(() => setUpAt(s.roll_up_at), [s.roll_up_at]);
 
   return (
     <>
@@ -47,7 +50,13 @@ export default function AutoTab({ home, busy, onSchedule, onProtect, onAutoWater
         <div className="row">
           <div>
             <div className="lead">Roll on a schedule</div>
-            <div className="note">Out before the sun, up in the evening</div>
+            <div className="note">
+              {s.enabled
+                ? `${(s.windows ?? []).filter((w) => w.enabled).length} window${
+                    (s.windows ?? []).filter((w) => w.enabled).length === 1 ? "" : "s"
+                  } set`
+                : "Set the hours the sheet should be out"}
+            </div>
           </div>
           <button
             className="switch"
@@ -60,28 +69,13 @@ export default function AutoTab({ home, busy, onSchedule, onProtect, onAutoWater
         </div>
 
         {s.enabled && (
-          <div className="times">
-            <label>
-              Roll out at
-              <input
-                type="time"
-                value={outAt}
-                disabled={busy}
-                onChange={(e) => setOutAt(e.target.value)}
-                onBlur={() => onSchedule({ roll_out_at: outAt })}
-              />
-            </label>
-            <label>
-              Roll up at
-              <input
-                type="time"
-                value={upAt}
-                disabled={busy}
-                onChange={(e) => setUpAt(e.target.value)}
-                onBlur={() => onSchedule({ roll_up_at: upAt })}
-              />
-            </label>
-          </div>
+          <ScheduleList
+            schedule={s}
+            busy={busy}
+            onPatch={onWindowPatch}
+            onAdd={onWindowAdd}
+            onDelete={onWindowDelete}
+          />
         )}
 
         <div className="row">

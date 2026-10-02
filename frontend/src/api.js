@@ -30,6 +30,14 @@ export const api = {
   moveSheet: (out) => req(`/api/sheet?out=${out}`, { method: "POST" }),
   setSchedule: (patch) =>
     req("/api/schedule", { method: "PATCH", body: JSON.stringify(patch) }),
+  addWindow: () => req("/api/schedule/windows", { method: "POST" }),
+  setWindow: (id, patch) =>
+    req(`/api/schedule/windows/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    }),
+  deleteWindow: (id) =>
+    req(`/api/schedule/windows/${id}`, { method: "DELETE" }),
   setProtect: (patch) =>
     req("/api/protect", { method: "PATCH", body: JSON.stringify(patch) }),
   serviced: () => req("/api/maintenance/done", { method: "POST" }),

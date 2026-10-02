@@ -61,6 +61,7 @@ body {
 
 /* The whole app is one screen with a fixed tab bar; only the tab body scrolls. */
 .shell {
+  position: relative; /* the alert overlay anchors to this */
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -108,21 +109,46 @@ body {
   flex-direction: column;
 }
 
-/* --- alert ------------------------------------------------------------ */
+/* --- alerts ----------------------------------------------------------- */
+/*
+ * Floated over the content, not laid out above it. In the flow, an alert arriving
+ * mid-glance pushed the dial down the screen and whatever the person was reaching
+ * for moved out from under their thumb. Here the layout underneath never moves.
+ */
+
+/*
+ * Anchored above the tab bar, not under the header. Floating it at the top kept the
+ * layout still but covered the three roll buttons — the exact controls someone
+ * reaches for in response to a storm warning. Down here it sits in the space the
+ * control tab leaves empty and covers nothing worth pressing.
+ */
+.alerts {
+  position: absolute;
+  bottom: 78px;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  padding: 0 16px;
+  display: grid;
+  gap: 8px;
+  pointer-events: none;
+}
 
 .alert {
   display: flex;
   gap: 10px;
   align-items: flex-start;
-  margin: 8px 0 4px;
-  padding: 12px 14px;
+  padding: 12px 10px 12px 14px;
   border-radius: 14px;
-  background: var(--panel);
-  border: 1px solid var(--panel-line);
+  /* Opaque rather than translucent: it sits on top of the dial, and a see-through
+     panel over a big numeral is unreadable. */
+  background: #0a4f4b;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3);
   font-size: 13.5px;
   color: var(--ink-dim);
   line-height: 1.4;
-  flex: none;
+  pointer-events: auto;
 }
 
 .alert strong {
@@ -136,6 +162,24 @@ body {
   border-radius: 999px;
   flex: none;
   margin-top: 6px;
+}
+
+.alert-x {
+  background: none;
+  border: none;
+  color: var(--ink-faint);
+  font-size: 22px;
+  line-height: 1;
+  padding: 0 6px;
+  margin: -4px 0 0;
+  min-width: 32px;
+  min-height: 32px;
+  cursor: pointer;
+  flex: none;
+}
+
+.alert-x:hover {
+  color: var(--ink);
 }
 
 /* --- mode row --------------------------------------------------------- */
@@ -437,6 +481,132 @@ body {
   background: rgba(0, 0, 0, 0.18);
   border: 1px solid var(--panel-line);
   border-radius: 12px;
+}
+
+/* --- schedule windows -------------------------------------------------- */
+
+.win {
+  padding: 14px 0 4px;
+  border-top: 1px solid var(--panel-line);
+}
+
+.win.off {
+  opacity: 0.5;
+}
+
+.win-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* A time input that shows AM/PM needs about 100px at this size. At 390px wide,
+   after the panel padding, the toggle and the gaps, there is just enough for two —
+   so the font and padding here are sized to the narrowest phone, not chosen. */
+.win-times {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 7px;
+  flex: 1;
+  min-width: 0;
+}
+
+.win-times input {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 7px;
+  min-height: 46px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--panel-line);
+  border-radius: 11px;
+}
+
+.win-dash {
+  font-size: 12.5px;
+  color: var(--ink-dim);
+}
+
+.switch.sm {
+  width: 42px;
+  height: 25px;
+}
+
+.switch.sm::after {
+  width: 19px;
+  height: 19px;
+}
+
+.switch.sm[aria-checked="true"]::after {
+  transform: translateX(17px);
+}
+
+.days {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.day {
+  flex: 1;
+  min-height: 38px;
+  border-radius: 10px;
+  border: 1px solid var(--track);
+  background: none;
+  color: var(--ink-dim);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.day[aria-pressed="true"] {
+  background: var(--gel);
+  border-color: var(--gel);
+  color: #06302e;
+  font-weight: 600;
+}
+
+.win-says {
+  font-size: 13px;
+  color: var(--ink-dim);
+  margin: 10px 0 0;
+  line-height: 1.45;
+}
+
+.win-says .now {
+  color: var(--good);
+  font-weight: 600;
+}
+
+.link {
+  background: none;
+  border: none;
+  padding: 8px 0;
+  min-height: 40px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--gel);
+  cursor: pointer;
+  text-align: left;
+}
+
+.link.danger {
+  color: var(--crit);
+}
+
+/* Closes the schedule group. Without the rule underneath it, the button read as
+   though it belonged to the weather row that follows. */
+.mini.wide {
+  width: 100%;
+  margin: 12px 0 16px;
+}
+
+.win-group-end {
+  border-bottom: 1px solid var(--panel-line);
 }
 
 /* --- small button inside a panel -------------------------------------- */

@@ -72,15 +72,71 @@ _sheet_request: str | None = None  # "out" | "up" | None
 # morning, up in the evening — so a clock beats a thermostat here. A roof covering
 # takes hours to change the temperature inside, which means reacting to an indoor
 # reading is always too late; being out before the sun arrives is what works.
-schedule = db.load_setting(
-    "schedule",
-    {
-        "enabled": False,
-        "roll_out_at": "08:00",
-        "roll_up_at": "19:00",
-    },
-)
-_schedule_fired: dict[str, str] = {}  # action -> the date it last fired
+#
+# A list of windows rather than one pair of times, because a day is not one shape.
+# A west-facing roof wants the sheet out for the afternoon only; someone home at
+# lunch wants a gap; a shoulder-season week wants it out three days in five. Each
+# window carries its own days of the week and an optional date range, so "every
+# afternoon in January" and "weekends until the end of the month" are both one row.
+#
+#   {"id": 1, "enabled": true, "out_at": "06:30", "up_at": "11:00",
+#    "days": [0,1,2,3,4],            # 0 = Monday
+#    "from": "2026-10-01", "to": null, "label": "Morning"}
+#
+def _window(wid: int, out_at: str, up_at: str, label: str) -> dict:
+    return {
+        "id": wid,
+        "enabled": True,
+        "out_at": out_at,
+        "up_at": up_at,
+        "days": [0, 1, 2, 3, 4, 5, 6],
+        "from": None,
+        "to": None,
+        "label": label,
+    }
+
+
+def _load_schedule() -> dict:
+    """
+    Read the schedule, carrying an older single-pair one into the windows list.
+
+    Loaded with an empty fallback on purpose. Merging the defaults in first would
+    hand this function a `windows` key that the person never set, and the migration
+    would see it, decide there was nothing to carry, and quietly throw away the
+    times they had chosen.
+    """
+    stored = db.load_setting("schedule", {})
+
+    if stored.get("windows"):
+        stored.pop("roll_out_at", None)
+        stored.pop("roll_up_at", None)
+        return {"enabled": stored.get("enabled", False), "windows": stored["windows"]}
+
+    if stored.get("roll_out_at") or stored.get("roll_up_at"):
+        migrated = {
+            "enabled": stored.get("enabled", False),
+            "windows": [
+                _window(
+                    1,
+                    stored.get("roll_out_at", "08:00"),
+                    stored.get("roll_up_at", "19:00"),
+                    "All day",
+                )
+            ],
+        }
+        db.save_setting("schedule", migrated)
+        return migrated
+
+    return {"enabled": False, "windows": [_window(1, "08:00", "19:00", "All day")]}
+
+
+schedule = _load_schedule()
+
+# What the schedule wanted the sheet to be, last time we looked. We act on the
+# CHANGE, not on the state, so that rolling the sheet up by hand at noon is not
+# undone two seconds later by a window that is still open. A manual decision stands
+# until the next boundary the schedule crosses.
+_last_desired: bool | None = None
 
 # Protective auto roll-up, driven by the forecast rather than by a sensor. A wind
 # gust that could tear the sheet has to be acted on before it arrives, and nothing
@@ -323,45 +379,104 @@ def _queue_sheet(move: str, why: str) -> None:
     db.log_event("sheet", why, session["id"] if session else None)
 
 
+def window_applies_today(w: dict, now: time.struct_time) -> bool:
+    """Does this window run on today's date at all?"""
+    if not w.get("enabled", True):
+        return False
+    if now.tm_wday not in w.get("days", [0, 1, 2, 3, 4, 5, 6]):
+        return False
+    today = time.strftime("%Y-%m-%d", now)
+    # A window can be given a start and an end date, which is how "just for this
+    # month" or "only over summer" is expressed without anyone having to remember
+    # to turn it off.
+    if w.get("from") and today < w["from"]:
+        return False
+    if w.get("to") and today > w["to"]:
+        return False
+    return True
+
+
+def active_window(now: time.struct_time | None = None) -> dict | None:
+    """The first window whose hours cover right now, or None."""
+    now = now or time.localtime()
+    hhmm = time.strftime("%H:%M", now)
+    for w in schedule.get("windows", []):
+        if not window_applies_today(w, now):
+            continue
+        out_at, up_at = w["out_at"], w["up_at"]
+        covered = (
+            out_at <= hhmm < up_at
+            if out_at <= up_at
+            # A window that ends before it starts runs through midnight, which is
+            # what someone asking for the sheet out overnight actually means.
+            else hhmm >= out_at or hhmm < up_at
+        )
+        if covered:
+            return w
+    return None
+
+
+def desired_sheet_state(now: time.struct_time | None = None) -> bool | None:
+    """
+    True if the schedule wants the sheet out, False if up, None if it has no opinion.
+
+    None happens when the schedule is off entirely, or when today has no windows at
+    all — on a day nobody scheduled, the sheet stays wherever it was put.
+    """
+    if not schedule.get("enabled"):
+        return None
+    now = now or time.localtime()
+    todays = [w for w in schedule.get("windows", []) if window_applies_today(w, now)]
+    if not todays:
+        return None
+    return active_window(now) is not None
+
+
 def tick_schedule() -> None:
     """
-    Fire the scheduled moves when the clock passes them.
+    Move the sheet when the schedule's intent changes.
 
-    Fires once per action per day, tracked by date, so a restart or a burst of
-    readings cannot make the motor run twice. If the app was off when the time
-    passed, the move still happens at the next reading — late is better than skipped
-    for "roll up at 7pm".
+    Edge-triggered on purpose. Acting on the state every tick would mean rolling the
+    sheet up by hand at noon got silently undone three seconds later, which is worse
+    than no schedule at all. Acting on the change means a manual decision stands
+    until the schedule next crosses a boundary of its own.
     """
-    if not schedule["enabled"]:
-        return
-    now = time.localtime()
-    today = time.strftime("%Y-%m-%d", now)
-    hhmm = time.strftime("%H:%M", now)
+    global _last_desired
 
-    for action, key, want_out in (
-        ("roll_out_at", "out", True),
-        ("roll_up_at", "up", False),
-    ):
-        at = schedule[action]
-        if hhmm >= at and _schedule_fired.get(key) != today:
-            _schedule_fired[key] = today
-            if _sheet_out == want_out:
-                continue
-            # The clock does not know a storm is coming. When the person has turned
-            # on rolling up in rough weather, the schedule must not undo it by
-            # rolling out into the same storm. With it off, the forecast only warns
-            # and never changes what the sheet does.
-            risk = (
-                forecast.in_risk(forecast.fetch(), protect["wind_gust_kmh"])
-                if want_out and protect["enabled"] and protect["auto"]
-                else None
-            )
-            if risk:
-                db.log_event(
-                    "schedule", f"Scheduled roll-out skipped — {risk['reason']}"
-                )
-                continue
-            _queue_sheet(key, f"Scheduled: rolling {key} at {at}")
+    want_out = desired_sheet_state()
+    if want_out is None:
+        _last_desired = None
+        return
+
+    first_look = _last_desired is None
+    changed = want_out != _last_desired
+    _last_desired = want_out
+
+    # On the first tick after a restart we align the sheet with the schedule, since
+    # the backend may have been down across a boundary. After that, only changes.
+    if not changed and not first_look:
+        return
+    if _sheet_out == want_out:
+        return
+
+    w = active_window() or {}
+    at = w.get("out_at" if want_out else "up_at", "")
+    label = w.get("label") or "Schedule"
+
+    # The clock does not know a storm is coming. When the person has turned on
+    # rolling up in rough weather, the schedule must not undo it by rolling out into
+    # the same storm. With it off, the forecast only warns and never changes what
+    # the sheet does.
+    if want_out and protect["enabled"] and protect["auto"]:
+        risk = forecast.in_risk(forecast.fetch(), protect["wind_gust_kmh"])
+        if risk:
+            db.log_event("schedule", f"Scheduled roll-out skipped — {risk['reason']}")
+            return
+
+    _queue_sheet(
+        "out" if want_out else "up",
+        f"{label}: rolling {'out' if want_out else 'up'}{f' at {at}' if at else ''}",
+    )
 
 
 def tick_protect() -> None:
@@ -410,9 +525,21 @@ def move_sheet(out: bool):
 
 
 class SchedulePatch(BaseModel):
+    """Turns the whole schedule on or off. Windows are edited one at a time."""
+
     enabled: bool | None = None
-    roll_out_at: str | None = None
-    roll_up_at: str | None = None
+
+
+class WindowPatch(BaseModel):
+    enabled: bool | None = None
+    out_at: str | None = None  # "HH:MM", 24-hour
+    up_at: str | None = None
+    days: list[int] | None = None  # 0 = Monday
+    label: str | None = None
+    # Explicit nulls have to be distinguishable from "not sent" here, because
+    # clearing an end date is a thing someone does. Sending "" means clear.
+    date_from: str | None = None
+    date_to: str | None = None
 
 
 class ProtectPatch(BaseModel):
@@ -520,7 +647,7 @@ def home():
         "water_threshold_pct": config["pump_threshold_pct"],
         "status": status,
         "advice": advice,
-        "schedule": schedule,
+        "schedule": schedule_state(),
         "protect": {
             **protect,
             "warning": warn,
@@ -564,15 +691,87 @@ def get_forecast():
 
 @app.patch("/api/schedule")
 def patch_schedule(p: SchedulePatch):
+    global _last_desired
     for k, v in p.model_dump(exclude_none=True).items():
         schedule[k] = v
     db.save_setting("schedule", schedule)
+    # Forget what the schedule wanted a moment ago, so the next tick treats this as
+    # a first look and brings the sheet in line with the new rules straight away.
+    _last_desired = None
     db.log_event(
         "schedule",
-        f"Schedule updated: out {schedule['roll_out_at']}, up {schedule['roll_up_at']}, "
-        f"{'on' if schedule['enabled'] else 'off'}",
+        f"Schedule turned {'on' if schedule['enabled'] else 'off'}",
     )
-    return schedule
+    return schedule_state()
+
+
+def schedule_state() -> dict:
+    """The schedule plus what it currently wants, which is what the app shows."""
+    now = time.localtime()
+    w = active_window(now)
+    return {
+        **schedule,
+        "active_window_id": w["id"] if w else None,
+        "wants_out": desired_sheet_state(now),
+    }
+
+
+@app.post("/api/schedule/windows")
+def add_window():
+    """A new window, in the gap most people want next: an afternoon."""
+    global _last_desired
+    windows = schedule.setdefault("windows", [])
+    new_id = max((w["id"] for w in windows), default=0) + 1
+    w = {
+        "id": new_id,
+        "enabled": True,
+        "out_at": "12:00",
+        "up_at": "18:00",
+        "days": [0, 1, 2, 3, 4, 5, 6],
+        "from": None,
+        "to": None,
+        "label": "",
+    }
+    windows.append(w)
+    db.save_setting("schedule", schedule)
+    _last_desired = None
+    return schedule_state()
+
+
+@app.patch("/api/schedule/windows/{window_id}")
+def patch_window(window_id: int, p: WindowPatch):
+    global _last_desired
+    w = next((x for x in schedule.get("windows", []) if x["id"] == window_id), None)
+    if not w:
+        raise HTTPException(404, "No such window")
+
+    sent = p.model_dump(exclude_unset=True)
+    for key, field in (("date_from", "from"), ("date_to", "to")):
+        if key in sent:
+            # Empty string is how the app says "no date", since a missing key means
+            # "leave it alone" and the two must not be confused.
+            w[field] = sent.pop(key) or None
+    for k, v in sent.items():
+        if v is not None:
+            w[k] = v
+
+    db.save_setting("schedule", schedule)
+    _last_desired = None
+    return schedule_state()
+
+
+@app.delete("/api/schedule/windows/{window_id}")
+def delete_window(window_id: int):
+    global _last_desired
+    before = len(schedule.get("windows", []))
+    schedule["windows"] = [
+        w for w in schedule.get("windows", []) if w["id"] != window_id
+    ]
+    if len(schedule["windows"]) == before:
+        raise HTTPException(404, "No such window")
+    db.save_setting("schedule", schedule)
+    _last_desired = None
+    return schedule_state()
 
 
 @app.patch("/api/protect")

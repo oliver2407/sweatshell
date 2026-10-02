@@ -54,6 +54,7 @@ export default function App() {
   const [tab, setTab] = useState("control");
   const [busy, setBusy] = useState(false);
   const [offline, setOffline] = useState(false);
+  const [dismissed, setDismissed] = useState([]);
 
   const refresh = useCallback(async () => {
     try {
@@ -99,7 +100,29 @@ export default function App() {
     );
   }
 
-  const warn = home.protect?.warning;
+  const warn = home.ready ? home.protect?.warning : null;
+
+  const alerts = [
+    offline && {
+      key: "offline",
+      tone: "var(--crit)",
+      head: "Can’t reach your roof.",
+      body: "Showing the last reading that came through.",
+    },
+    warn && {
+      key: `warn:${warn.start}:${warn.reason}`,
+      tone: "var(--warn)",
+      head: `${windowLabel(warn)} — ${warn.reason}.`,
+      body: warnAdvice(warn, home.protect.auto, home.sheet_out),
+    },
+    home.ready &&
+      home.protect?.season_over && {
+        key: "season",
+        tone: "var(--ink-faint)",
+        head: "The next week is mild.",
+        body: "If the hot season is over, roll it up, dry it fully, and store it.",
+      },
+  ].filter(Boolean).filter((a) => !dismissed.includes(a.key));
 
   return (
     <div className="shell">
@@ -110,39 +133,36 @@ export default function App() {
         </span>
       </header>
 
+      {/*
+        Alerts float over the content in one fixed spot rather than sitting in the
+        flow above it. In the flow, a storm warning arriving mid-glance shoved the
+        dial down the screen and whatever the person was reaching for moved out from
+        under their thumb. Pinned here, the layout underneath never changes.
+
+        Each is dismissable, and the key includes what it says — so a dismissed
+        warning stays gone, and a *different* warning still gets through.
+      */}
+      {alerts.length > 0 && (
+        <div className="alerts">
+          {alerts.map((a) => (
+            <div className="alert" key={a.key}>
+              <span className="pip" style={{ background: a.tone }} />
+              <span>
+                <strong>{a.head}</strong> {a.body}
+              </span>
+              <button
+                className="alert-x"
+                aria-label="Dismiss"
+                onClick={() => setDismissed((d) => [...d, a.key])}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="body">
-        {offline && (
-          <div className="alert">
-            <span className="pip" style={{ background: "var(--crit)" }} />
-            <span>
-              <strong>Can’t reach your roof.</strong> Showing the last reading that
-              came through.
-            </span>
-          </div>
-        )}
-
-        {home.ready && warn && (
-          <div className="alert">
-            <span className="pip" style={{ background: "var(--warn)" }} />
-            <span>
-              <strong>
-                {windowLabel(warn)} — {warn.reason}.
-              </strong>{" "}
-              {warnAdvice(warn, home.protect.auto, home.sheet_out)}
-            </span>
-          </div>
-        )}
-
-        {home.ready && home.protect?.season_over && (
-          <div className="alert">
-            <span className="pip" style={{ background: "var(--ink-faint)" }} />
-            <span>
-              <strong>The next week is mild.</strong> If the hot season is over, roll
-              it up, dry it fully, and store it.
-            </span>
-          </div>
-        )}
-
         {!home.ready ? (
           <div className="empty">
             {home.message} Once the roof unit is powered and on your wifi, its readings
@@ -165,6 +185,9 @@ export default function App() {
             onSchedule={(patch) => act(() => api.setSchedule(patch))}
             onProtect={(patch) => act(() => api.setProtect(patch))}
             onAutoWater={(on) => act(() => api.setAutoWater(on))}
+            onWindowPatch={(id, patch) => act(() => api.setWindow(id, patch))}
+            onWindowAdd={() => act(() => api.addWindow())}
+            onWindowDelete={(id) => act(() => api.deleteWindow(id))}
           />
         ) : (
           <CareTab
