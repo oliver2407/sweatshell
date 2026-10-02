@@ -126,6 +126,18 @@ export default function App() {
       head: "Can’t reach your roof.",
       body: "Showing the last reading that came through.",
     },
+    // The backend is answering but the roof unit is not. This used to look exactly
+    // like everything being fine — the numbers simply stopped moving — while the
+    // bridge sat on a sentence saying which wire to go and look at.
+    !offline &&
+      home.device &&
+      !home.device.connected &&
+      home.device.error && {
+        key: `dev:${home.device.error}`,
+        tone: "var(--crit)",
+        head: "The roof unit isn’t answering.",
+        body: home.device.error,
+      },
     warn && {
       key: `warn:${warn.start}:${warn.reason}`,
       tone: "var(--warn)",

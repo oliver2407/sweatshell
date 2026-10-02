@@ -823,6 +823,13 @@ def home():
             # holding it. The screen has to say so: the alternative is a number
             # that reads as saved and is not.
             "settings_error": bridge.status().get("settings_error"),
+            # Why the last poll failed, in words. The bridge has written this
+            # carefully since the day it existed and nothing ever showed it, so a
+            # unit on the wrong wifi and a unit with a dead sensor looked identical
+            # from the screen: both just stopped updating.
+            "error": bridge.status().get("last_error"),
+            "url": bridge_cfg.get("url"),
+            "seconds_since_ok": bridge.status().get("seconds_since_ok"),
         },
         "schedule": schedule_state(),
         "protect": {
