@@ -13,7 +13,7 @@ from typing import Literal
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 import bridge
 import cooling
@@ -577,6 +577,27 @@ class BridgePatch(BaseModel):
     enabled: bool | None = None
     url: str | None = None
     poll_seconds: float | None = None
+
+    @field_validator("url")
+    @classmethod
+    def _scheme(cls, v: str | None) -> str | None:
+        """
+        Accept what people actually type.
+
+        The address gets read off a serial monitor and typed in under demo pressure,
+        usually as bare "172.20.10.2". Without a scheme httpx raises before it sends
+        anything, and the reason shown is UnsupportedProtocol — which says nothing
+        about the four characters missing from the front. Trailing slashes and stray
+        spaces come along for the same ride.
+        """
+        if v is None:
+            return None
+        v = v.strip().rstrip("/")
+        if not v:
+            return None
+        if "://" not in v:
+            v = "http://" + v
+        return v
 
 
 class DeviceSettingsPatch(BaseModel):
