@@ -35,9 +35,16 @@ function arcPath(cx, cy, r, fromDeg, toDeg) {
   return `M${x1.toFixed(2)},${y1.toFixed(2)} A${r},${r} 0 ${large} 1 ${x2.toFixed(2)},${y2.toFixed(2)}`;
 }
 
-function waterWord(pct, sheetOut, stale) {
+/*
+ * The water's condition, and only that. This used to return "Rolled up" whenever
+ * the sheet was in, which made the dial answer a question it is not measuring — and
+ * then the same fact appeared twice on screen, once here and once in the line that
+ * states the sheet's position. Where the sheet is belongs to that line. How much
+ * water is left is still worth knowing while it is rolled up: it is what decides
+ * whether rolling out now would do anything.
+ */
+function waterWord(pct, stale) {
   if (stale || pct == null) return { label: "No reading", tone: "var(--crit)" };
-  if (!sheetOut) return { label: "Rolled up", tone: "var(--ink-faint)" };
   if (pct >= 70) return { label: "Full", tone: "var(--good)" };
   if (pct >= 40) return { label: "Cooling", tone: "var(--good)" };
   if (pct >= 20) return { label: "Getting low", tone: "var(--warn)" };
@@ -47,7 +54,7 @@ function waterWord(pct, sheetOut, stale) {
 export default function Dial({ home, size = 248 }) {
   const pct = Math.max(0, Math.min(100, home.water_pct ?? 0));
   const known = home.water_pct != null && !home.stale;
-  const state = waterWord(home.water_pct, home.sheet_out, home.stale);
+  const state = waterWord(home.water_pct, home.stale);
 
   const SIZE = size;
   const c = SIZE / 2;

@@ -9,6 +9,12 @@ working, it is possible to tell whether the device or the translation changed.
 
 The JSON shape here is copied from buildJson() in the sketch. If the firmware's
 field names change, this file is where the mismatch shows up first.
+
+/set is the one endpoint here that is a GUESS. The sketch reports its thresholds in
+/data, so it is read back from there; what it calls them on the way *in* has not been
+read from the real source. So this stand-in accepts both spellings, and the bridge
+checks the device's own readback rather than trusting that a write landed — on the
+real unit that check is what tells the truth.
 """
 
 import argparse
@@ -30,6 +36,24 @@ STATE = {
     "mode": "auto",
     "started": time.time(),
     "log": ["[00:00:00] Ready. Roller assumed rolled UP at start"],
+    # Thresholds live here rather than in data() so that a /set actually changes
+    # what the next /data reports. Hard-coding them made every settings test pass
+    # for the wrong reason: the numbers came back right because they could not move.
+    "settings": {
+        "hot": 26.0, "cool": 22.0, "danger": 30.0, "dry_pct": 30,
+        "humidity": -1, "moist_dry_raw": 3500, "moist_wet_raw": 1500,
+        "h1": 0, "h2": 1, "out": 2,
+    },
+}
+
+# What each query argument writes to. "dry" and "dry_pct" land in the same place,
+# because which of the two the real sketch reads is not known from its /data output.
+SET_KEYS = {
+    "hot": ("hot", float),
+    "cool": ("cool", float),
+    "danger": ("danger", float),
+    "dry": ("dry_pct", int),
+    "dry_pct": ("dry_pct", int),
 }
 
 
@@ -63,11 +87,7 @@ def data():
         "roller": {"state": STATE["roller"], "pos": STATE["pos"], "out_steps": 4096},
         "mode": STATE["mode"],
         "blackout": False,
-        "settings": {
-            "hot": 26.0, "cool": 22.0, "danger": 30.0, "dry_pct": 30,
-            "humidity": -1, "moist_dry_raw": 3500, "moist_wet_raw": 1500,
-            "h1": 0, "h2": 1, "out": 2,
-        },
+        "settings": dict(STATE["settings"]),
         "log": STATE["log"][-12:],
     }
 
@@ -90,6 +110,23 @@ class Handler(BaseHTTPRequestHandler):
         q = parse_qs(u.query)
 
         if u.path == "/data":
+            return self._send(data())
+
+        if u.path == "/set":
+            wrote = {}
+            for arg, raw in q.items():
+                if arg not in SET_KEYS:
+                    continue  # an Arduino sketch ignores arguments it does not read
+                key, cast = SET_KEYS[arg]
+                try:
+                    STATE["settings"][key] = cast(float(raw[0]))
+                except (TypeError, ValueError):
+                    return self._send({"error": f"bad value for {arg}"}, 400)
+                wrote[key] = STATE["settings"][key]
+            if not wrote:
+                return self._send({"error": "nothing to set"}, 400)
+            STATE["log"].append(f"[--] set {wrote}")
+            print(f"  device <- set {wrote}")
             return self._send(data())
 
         if u.path == "/cmd":

@@ -61,10 +61,21 @@ function DeviceThresholds({ device, busy, onPatch }) {
         {field("dry", "Top up below", s.dry_pct, "% water", "1")}
       </div>
 
-      <p className="tiny">
-        Stored on the roof unit itself, so they survive a restart of this app and
-        apply even if it is closed.
-      </p>
+      {/*
+        A number here is only saved once the roof unit reports it back. Until that
+        check existed, a device that ignored the request still left the app saying
+        "saved" — and the old value quietly reappeared a poll later with nothing to
+        explain it.
+      */}
+      {device.settings_error ? (
+        <p className="tiny warnline">{device.settings_error}</p>
+      ) : (
+        <p className="tiny">
+          Saved onto the roof unit itself — each one is read back from it to confirm
+          it landed, so these survive a restart of this app and apply even if it is
+          closed.
+        </p>
+      )}
     </div>
   );
 }

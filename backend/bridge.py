@@ -62,6 +62,7 @@ _state = {
     "last_error": None,  # what went wrong, in words
     "device_mode": None,  # "auto" or "manual", as the device reports it
     "device_settings": None,  # the firmware's own thresholds, last seen
+    "settings_error": None,  # set a threshold and the device did not take it
     "polls": 0,
 }
 
@@ -69,6 +70,17 @@ _state = {
 # edits them through /set rather than keeping a second copy that has to agree.
 _want_mode: str | None = None
 _want_settings: dict = {}
+
+# Sent to /set, waiting to be confirmed against the device's own next report.
+_sent_settings: dict = {}
+
+# What a threshold is called going out, versus coming back in /data. /data is the
+# only source for these names that has been read from the device itself; the write
+# side is inferred, so "dry" is sent alongside "dry_pct" and whichever the sketch
+# reads wins. The readback below is what settles it — without it the app would be
+# claiming a change it never made.
+_READ_AS = {"dry": "dry_pct"}
+_ALSO_SEND = {"dry": "dry_pct"}
 
 
 def set_mode(mode: str) -> None:
@@ -79,6 +91,25 @@ def set_mode(mode: str) -> None:
 
 def set_device_settings(patch: dict) -> None:
     _want_settings.update(patch)
+    _state["settings_error"] = None  # a fresh attempt, not the old verdict
+
+
+def forget_settings_error() -> None:
+    """Drop the last verdict — the device it was about is no longer the one here."""
+    _state["settings_error"] = None
+
+
+def _took(reported: dict, key: str, asked) -> bool:
+    """Did the device come back reporting the number we asked it to hold?"""
+    got = reported.get(_READ_AS.get(key, key))
+    if got is None:
+        # Not reported at all, so there is nothing to confirm it against. Counting
+        # silence as success is how a write that never happened looks like one.
+        return False
+    try:
+        return abs(float(got) - float(asked)) <= 0.01
+    except (TypeError, ValueError):
+        return False
 
 
 def explain(exc: Exception, url: str) -> str:
@@ -209,9 +240,32 @@ class Bridge:
         # The firmware owns its thresholds. Editing them here writes through to the
         # device rather than keeping a second copy in this app that has to agree
         # with the first.
+        #
+        # A write is never assumed to have worked. The first version fired this off,
+        # cleared the queue and said nothing — against a device with no /set at all
+        # the app answered "saved", the number sprang back on the next poll, and
+        # there was no error anywhere to explain it. Now the request is checked, and
+        # then checked again against what the device itself reports below.
+        global _sent_settings
         if _want_settings:
-            client.get(f"{base}/set", params=dict(_want_settings))
+            asked = dict(_want_settings)
             _want_settings.clear()
+            params = dict(asked)
+            for k, alias in _ALSO_SEND.items():
+                if k in asked:
+                    params[alias] = asked[k]
+            try:
+                resp = client.get(f"{base}/set", params=params)
+                if resp.status_code >= 400:
+                    _state["settings_error"] = (
+                        f"The roof unit refused the change ({resp.status_code}). Its "
+                        "firmware may not take settings over wifi — change them in "
+                        "the sketch and re-flash."
+                    )
+                else:
+                    _sent_settings = asked
+            except Exception as exc:
+                _state["settings_error"] = explain(exc, base)
 
         # Hand the device any command the app has queued, before reading, so the
         # reading that comes back already reflects it.
@@ -239,6 +293,27 @@ class Bridge:
 
         _state["device_mode"] = d.get("mode")
         _state["device_settings"] = d.get("settings")
+
+        # The device has now had its say on the thresholds we asked for. If it is
+        # still reporting the old numbers, the request reached it and was ignored —
+        # almost certainly because the sketch reads a different argument name than
+        # the one it reports. Either way the person needs to know the number on
+        # their screen is not the number on their roof.
+        if _sent_settings:
+            got = d.get("settings") or {}
+            missed = [k for k, v in _sent_settings.items() if not _took(got, k, v)]
+            _state["settings_error"] = (
+                None
+                if not missed
+                else (
+                    "The roof unit answered but kept its old "
+                    + ", ".join(missed)
+                    + ". Its firmware uses different names for these settings, so "
+                    "they have to be changed in the sketch."
+                )
+            )
+            _sent_settings = {}
+
         _state["last_ok"] = time.time()
         _state["last_error"] = None
         _state["polls"] += 1

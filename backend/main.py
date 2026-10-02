@@ -631,8 +631,14 @@ def get_bridge():
 
 @app.patch("/api/bridge")
 def patch_bridge(p: BridgePatch):
+    was = bridge_cfg.get("url")
     for k, v in p.model_dump(exclude_none=True).items():
         bridge_cfg[k] = v
+    # A verdict about one device says nothing about the next one. Pointed at a
+    # second unit, the old "it refused the change" sat there accusing hardware it
+    # had never spoken to.
+    if bridge_cfg.get("url") != was:
+        bridge.forget_settings_error()
     db.save_setting("bridge", bridge_cfg)
     db.log_event(
         "bridge",
@@ -813,6 +819,10 @@ def home():
             "mode": bridge.status().get("device_mode"),
             "settings": bridge.status().get("device_settings"),
             "connected": bridge.status().get("connected"),
+            # Set when a threshold was sent and the device did not come back
+            # holding it. The screen has to say so: the alternative is a number
+            # that reads as saved and is not.
+            "settings_error": bridge.status().get("settings_error"),
         },
         "schedule": schedule_state(),
         "protect": {
