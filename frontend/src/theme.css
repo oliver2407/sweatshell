@@ -791,113 +791,124 @@ body {
 }
 
 /*
- * Desktop.
+ * Desktop: one dashboard, no navigation.
  *
- * The phone layout stretched to 1400px would be one narrow column with a tab bar
- * pinned to the bottom of a screen nobody's thumb reaches. So the bar becomes a
- * sidebar — the same four places, now with room for their names — and the control
- * view puts the chart beside the dial instead of a tab away.
+ * Four tabs on a screen with room for four columns is a phone habit. The only
+ * reason to hide three quarters of a control panel is that there is nowhere to put
+ * it, and on a laptop there is. So the tab bar goes away entirely and every section
+ * is on screen at once.
  *
- * It is the same four sections either way. Only their arrangement changes.
+ * The dial keeps the open field to itself in the first column so it stays what the
+ * eye lands on; everything supporting it sits in panels to the right. Two columns
+ * from 900px, three from 1280px — the schedule editor needs about 360px before its
+ * time inputs and day chips start fighting, and that is what sets the second step.
+ *
+ * This block is last in the file on purpose. Written above the rules it overrides,
+ * the base rules win on source order — which is how the sidebar it replaced
+ * ended up stretched down the page and the wordmark never appeared at all.
  */
 @media (min-width: 900px) {
   .shell {
-    max-width: 1180px;
-    display: grid;
-    grid-template-columns: 216px 1fr;
-    grid-template-areas:
-      "nav head"
-      "nav body";
-    grid-template-rows: auto 1fr;
-    border-left: 1px solid rgba(255, 255, 255, 0.07);
-    border-right: 1px solid rgba(255, 255, 255, 0.07);
+    max-width: 1320px;
+    height: auto;
+    min-height: 100%;
   }
 
   .bar {
-    grid-area: head;
-    padding: 26px 32px 10px;
+    padding: 24px 32px 4px;
+    gap: 16px;
   }
 
+  .bar .brand {
+    display: block;
+    padding: 0;
+    font-size: 18px;
+  }
+
+  /* A hairline between the name and the place keeps two headings from reading as
+     one run-on title. */
   .bar .where {
-    font-size: 21px;
+    padding-left: 16px;
+    border-left: 1px solid var(--panel-line);
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--ink-dim);
   }
 
   .body {
-    grid-area: body;
-    padding: 0 32px 32px;
+    padding: 0 32px 40px;
+    overflow: visible;
   }
 
-  .tabs {
-    grid-area: nav;
-    flex-direction: column;
-    justify-content: flex-start;
-    gap: 4px;
-    padding: 26px 14px;
-    border-top: none;
-    border-right: 1px solid var(--panel-line);
-    background: rgba(0, 0, 0, 0.1);
-  }
-
-  .tab {
-    flex: none;
-    flex-direction: row;
-    justify-content: flex-start;
-    gap: 13px;
-    padding: 12px 14px;
-    min-height: 48px;
-    font-size: 14.5px;
-    border-radius: 11px;
-    text-align: left;
-  }
-
-  .tab[aria-selected="true"] {
-    background: var(--panel);
-  }
-
-  /* Alerts move to the top-right. Bottom-centre is a phone convention and on a
-     wide screen it lands nowhere near where the eye is working. */
-  .alerts {
-    top: 22px;
-    bottom: auto;
-    left: auto;
-    right: 0;
-    width: 420px;
-    padding: 0 32px 0 0;
-  }
-
-  /* Controls one side, what has been happening the other. */
-  .split {
+  .dash {
     display: grid;
-    grid-template-columns: minmax(320px, 1fr) minmax(340px, 1.05fr);
-    gap: 28px;
+    grid-template-columns: minmax(300px, 0.85fr) minmax(360px, 1fr);
+    gap: 24px;
     align-items: start;
   }
 
-  .split-main {
+  /* Stacked at two columns, split in two at three. */
+  .dash-rest {
     display: flex;
     flex-direction: column;
+    min-width: 0;
   }
 
-  .split-side > .panel:first-child {
+  .dash-col {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .dash-col > .panel:first-child,
+  .dash-col > :first-child > .panel:first-child {
     margin-top: 0;
   }
 
-  .modes {
-    padding-top: 10px;
+  /* The control column is the hero: no panel around it, sitting straight on the
+     field, with the dial centred in its own space. */
+  .hero {
+    align-items: center;
+    padding-top: 6px;
   }
 
-  .act {
+  .hero .modes {
+    padding-top: 4px;
+  }
+
+  .hero .act {
     margin: 26px auto 0;
   }
 
-  /* Settings and reading matter get a column, not the whole window. Inside the
-     control view's side column the panels fill their track, which is already
-     narrow enough. */
-  .column {
-    max-width: 640px;
+  .alerts {
+    top: 18px;
+    bottom: auto;
+    left: auto;
+    right: 0;
+    width: 440px;
+    padding: 0 32px 0 0;
+  }
+}
+
+@media (min-width: 1280px) {
+  .dash {
+    grid-template-columns: minmax(300px, 0.72fr) minmax(740px, 2fr);
   }
 
-  .brand {
-    display: block;
+  .dash-rest {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+}
+
+@media (min-width: 900px) {
+  /* The rules sit in the hero column but must not inherit its centring — a
+     paragraph centred under a dial reads as a caption, not as instructions. */
+  .hero > .panel {
+    align-self: stretch;
+    width: 100%;
+    margin-top: 28px;
   }
 }

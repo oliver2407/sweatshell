@@ -3,7 +3,7 @@ import { api, clockOf, explain } from "./api.js";
 import ControlTab from "./components/ControlTab.jsx";
 import HistoryTab from "./components/HistoryTab.jsx";
 import AutoTab from "./components/AutoTab.jsx";
-import CareTab from "./components/CareTab.jsx";
+import CareTab, { CareRules } from "./components/CareTab.jsx";
 import { Drop, Chart, Clock, Leaf } from "./components/icons.jsx";
 import useIsWide from "./useIsWide.js";
 
@@ -144,6 +144,7 @@ export default function App() {
   return (
     <div className="shell">
       <header className="bar">
+        <span className="brand">SweatShell</span>
         <span className="where">Your roof</span>
         <span className="when">
           {offline ? "Offline" : home.ready ? clockOf(home.ts) : ""}
@@ -185,15 +186,36 @@ export default function App() {
             {home.message} Once the roof unit is powered and on your wifi, its readings
             arrive here.
           </div>
-        ) : tab === "control" ? (
-          <ControlTab
-            home={home}
-            busy={busy}
-            wide={wide}
-            // On a wide screen the chart rides along beside the controls, so the
-            // trend and the current reading are on screen together.
-            aside={
-              <>
+        ) : wide ? (
+          /*
+           * Desktop has no navigation at all. Four tabs on a screen with room for
+           * four columns is a phone habit: the only reason to hide three quarters
+           * of a control panel is that there is nowhere to put it.
+           *
+           * The dial keeps the field to itself on the left, so it stays the thing
+           * the eye lands on; everything that supports it sits in panels beside it.
+           */
+          <div className="dash">
+            <section className="dash-col hero">
+              <ControlTab
+                home={home}
+                busy={busy}
+                wide
+                onMove={(out) => act(() => api.moveSheet(out))}
+                onSchedule={(patch) => act(() => api.setSchedule(patch))}
+                onWater={() => act(() => api.water())}
+              />
+              <CareRules />
+            </section>
+
+            {/*
+              Everything that is not the dial lives inside one wrapper, which
+              stacks at two columns and splits at three. Left as three siblings in
+              one grid, the two-column case put the schedule back under the dial
+              and left the right half empty from the chart down.
+            */}
+            <div className="dash-rest">
+              <section className="dash-col">
                 <HistoryTab series={series} />
                 <CareTab
                   m={home.maintenance}
@@ -201,8 +223,26 @@ export default function App() {
                   onDone={() => act(() => api.serviced())}
                   compact
                 />
-              </>
-            }
+              </section>
+
+              <section className="dash-col">
+                <AutoTab
+                  home={home}
+                  busy={busy}
+                  onSchedule={(patch) => act(() => api.setSchedule(patch))}
+                  onProtect={(patch) => act(() => api.setProtect(patch))}
+                  onAutoWater={(on) => act(() => api.setAutoWater(on))}
+                  onWindowPatch={(id, patch) => act(() => api.setWindow(id, patch))}
+                  onWindowAdd={() => act(() => api.addWindow())}
+                  onWindowDelete={(id) => act(() => api.deleteWindow(id))}
+                />
+              </section>
+            </div>
+          </div>
+        ) : tab === "control" ? (
+          <ControlTab
+            home={home}
+            busy={busy}
             onMove={(out) => act(() => api.moveSheet(out))}
             onSchedule={(patch) => act(() => api.setSchedule(patch))}
             onWater={() => act(() => api.water())}
@@ -210,48 +250,41 @@ export default function App() {
         ) : tab === "history" ? (
           <HistoryTab series={series} />
         ) : tab === "auto" ? (
-          // Settings and reading matter are capped to a column. Stretching a time
-          // input across 1400px does not make it easier to set, only longer to
-          // cross, and a row of seven day chips a hand-span wide is a phone layout
-          // pulled out of shape.
-          <div className="column">
-            <AutoTab
-              home={home}
-              busy={busy}
-              onSchedule={(patch) => act(() => api.setSchedule(patch))}
-              onProtect={(patch) => act(() => api.setProtect(patch))}
-              onAutoWater={(on) => act(() => api.setAutoWater(on))}
-              onWindowPatch={(id, patch) => act(() => api.setWindow(id, patch))}
-              onWindowAdd={() => act(() => api.addWindow())}
-              onWindowDelete={(id) => act(() => api.deleteWindow(id))}
-            />
-          </div>
+          <AutoTab
+            home={home}
+            busy={busy}
+            onSchedule={(patch) => act(() => api.setSchedule(patch))}
+            onProtect={(patch) => act(() => api.setProtect(patch))}
+            onAutoWater={(on) => act(() => api.setAutoWater(on))}
+            onWindowPatch={(id, patch) => act(() => api.setWindow(id, patch))}
+            onWindowAdd={() => act(() => api.addWindow())}
+            onWindowDelete={(id) => act(() => api.deleteWindow(id))}
+          />
         ) : (
-          <div className="column">
-            <CareTab
-              m={home.maintenance}
-              busy={busy}
-              onDone={() => act(() => api.serviced())}
-            />
-          </div>
+          <CareTab
+            m={home.maintenance}
+            busy={busy}
+            onDone={() => act(() => api.serviced())}
+          />
         )}
       </div>
 
-      <nav className="tabs" role="tablist">
-        <span className="brand">SweatShell</span>
-        {TABS.map(({ id, label, Icon }) => (
-          <button
-            key={id}
-            className="tab"
-            role="tab"
-            aria-selected={tab === id}
-            onClick={() => setTab(id)}
-          >
-            <Icon />
-            {label}
-          </button>
-        ))}
-      </nav>
+      {!wide && (
+        <nav className="tabs" role="tablist">
+          {TABS.map(({ id, label, Icon }) => (
+            <button
+              key={id}
+              className="tab"
+              role="tab"
+              aria-selected={tab === id}
+              onClick={() => setTab(id)}
+            >
+              <Icon />
+              {label}
+            </button>
+          ))}
+        </nav>
+      )}
     </div>
   );
 }

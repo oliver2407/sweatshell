@@ -53,25 +53,12 @@ function modeSentence(home) {
     : `On a schedule — ${verb} at ${when}.`;
 }
 
-export default function ControlTab({
-  home,
-  busy,
-  onMove,
-  onSchedule,
-  onWater,
-  wide,
-  aside,
-}) {
+export default function ControlTab({ home, busy, onMove, onSchedule, onWater, wide }) {
   const out = home.sheet_out;
   const auto = home.schedule.enabled;
   const watering = home.pump_on || home.pump_queued;
 
-  /*
-   * On a wide screen the controls take one column and the chart takes the other.
-   * A desktop that still makes you switch tabs to see whether the sheet has been
-   * doing anything is a phone layout stretched, not a desktop layout.
-   */
-  const controls = (
+  return (
     <>
       <div className="modes">
         <button
@@ -143,14 +130,5 @@ export default function ControlTab({
         {watering ? "Watering…" : "Water now"}
       </button>
     </>
-  );
-
-  if (!wide) return controls;
-
-  return (
-    <div className="split">
-      <div className="split-main">{controls}</div>
-      <div className="split-side">{aside}</div>
-    </div>
   );
 }

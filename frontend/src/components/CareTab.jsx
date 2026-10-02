@@ -70,16 +70,25 @@ export default function CareTab({ m, busy, onDone, compact }) {
         </p>
       </div>
 
-      {!compact && (
-        <div className="panel">
-          <h2>Looking after it</h2>
-          <ul className="care">
-            {RULES.map((r) => (
-              <li key={r}>{r}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {!compact && <CareRules />}
     </>
+  );
+}
+
+/*
+ * Split out so the dashboard can put the rules under the dial, where the hero
+ * column would otherwise trail off into empty field, while the countdown stays
+ * beside the chart with the other live numbers.
+ */
+export function CareRules() {
+  return (
+    <div className="panel">
+      <h2>Looking after it</h2>
+      <ul className="care">
+        {RULES.map((r) => (
+          <li key={r}>{r}</li>
+        ))}
+      </ul>
+    </div>
   );
 }
