@@ -62,6 +62,10 @@ _state = {
     "last_error": None,  # what went wrong, in words
     "device_mode": None,  # "auto" or "manual", as the device reports it
     "device_settings": None,  # the firmware's own thresholds, last seen
+    # The three probes exactly as the device names them. Kept so the app can show
+    # what it was given rather than only what it made of it: "inside and outside are
+    # the same number" is unanswerable from a screen that shows one of each.
+    "device_temps": None,
     "settings_error": None,  # set a threshold and the device did not take it
     "polls": 0,
 }
@@ -293,6 +297,7 @@ class Bridge:
 
         _state["device_mode"] = d.get("mode")
         _state["device_settings"] = d.get("settings")
+        _state["device_temps"] = d.get("temps")
 
         # The device has now had its say on the thresholds we asked for. If it is
         # still reporting the old numbers, the request reached it and was ignored —

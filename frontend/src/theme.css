@@ -358,6 +358,34 @@ body {
   cursor: not-allowed;
 }
 
+.probes {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--panel-line);
+}
+
+.probe {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 6px 0;
+  font-size: 14px;
+}
+
+.probe-v {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.probe-i {
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+
 /* Tucked away while the unit is answering — it is the right thing to reach for
    when nothing works, and clutter the rest of the time. */
 .fold {

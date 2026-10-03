@@ -56,6 +56,56 @@ function Address({ device, busy, onSet }) {
         changes whenever the unit restarts, so if the app goes quiet, check it here
         first.
       </p>
+
+      <Probes device={device} />
+    </div>
+  );
+}
+
+/*
+ * The three probes, exactly as the roof unit reports them.
+ *
+ * "Inside and outside are showing the same number" cannot be answered from a screen
+ * that shows one of each — the app has already chosen which is which by then. Here
+ * are all three raw, next to the bus position each is read from, so one look says
+ * whether the unit sent three different temperatures or two of its probes are
+ * reading the same thing.
+ *
+ * A DS18B20's position comes from its ROM address, not the order the wires went into
+ * the terminal, so the number beside a name is not something anyone chose.
+ */
+function Probes({ device }) {
+  const t = device?.temps;
+  const s = device?.settings;
+  if (!t) return null;
+
+  const rows = [
+    ["Inside (under the sheet)", t.house2, s?.h2],
+    ["Inside (bare side)", t.house1, s?.h1],
+    ["Outside", t.outside, s?.out],
+  ];
+  const seen = rows.map((r) => r[1]).filter((v) => typeof v === "number");
+  const clash = new Set(seen.map((v) => v.toFixed(2))).size < seen.length;
+
+  return (
+    <div className="probes">
+      <div className="addr-l">What the unit is sending</div>
+      {rows.map(([label, v, idx]) => (
+        <div className="probe" key={label}>
+          <span>{label}</span>
+          <span className="probe-v">
+            {typeof v === "number" ? `${v.toFixed(2)}°` : "—"}
+            <span className="probe-i">probe {idx ?? "?"}</span>
+          </span>
+        </div>
+      ))}
+      {clash && (
+        <p className="tiny warnline">
+          Two of these are the same temperature. The probes are numbered by their
+          chip address, not by where they were wired, so one is likely pointed at the
+          wrong place — swapping the numbers fixes it without reflashing.
+        </p>
+      )}
     </div>
   );
 }

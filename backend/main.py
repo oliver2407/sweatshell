@@ -889,6 +889,9 @@ def home():
         "device": {
             "mode": bridge.status().get("device_mode"),
             "settings": bridge.status().get("device_settings"),
+            # The three probes as the device names them, so the Connection panel can
+            # show what arrived rather than only what this app made of it.
+            "temps": bridge.status().get("device_temps"),
             "connected": bridge.status().get("connected"),
             # Set when a threshold was sent and the device did not come back
             # holding it. The screen has to say so: the alternative is a number
