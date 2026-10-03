@@ -211,6 +211,10 @@ class Reading(BaseModel):
     pump_on: bool = False
     sheet_out: bool | None = None  # what the roller actually did, not what we asked
     ts: float | None = None  # lets the simulator and buffered uploads backdate
+    # "device" or "sim". The simulator posts here too — that is how we know the
+    # endpoint works — so without this the app cannot tell a measured 22° from an
+    # invented 40°, and neither can anyone reading a chart of both.
+    source: str = "device"
 
 
 class SessionStart(BaseModel):
@@ -334,6 +338,7 @@ def post_reading(reading: Reading):
         session_id=session_id,
         ts=reading.ts,
         sheet_out=_sheet_out,
+        source="sim" if reading.source == "sim" else "device",
     )
 
     pct = water_percent(reading.gel_mass_g)
@@ -771,7 +776,10 @@ def home_readings() -> list[dict]:
     are built for exactly this. Nobody living with a roof covering presses "start a
     run" first, so this screen does not ask, and does not get hijacked by one.
     """
-    return db.readings_since(HOME_WINDOW_S)
+    # Device readings only. Simulated rows live in the same table on purpose, but
+    # this is the screen a resident reads, and a number nobody measured has no place
+    # on it.
+    return db.readings_since(HOME_WINDOW_S, source="device")
 
 
 def maintenance_state(fc: dict | None = None) -> dict:
@@ -808,7 +816,11 @@ def home():
     the sheet need water, where is the sheet, and is anything coming that they
     should know about.
     """
-    latest = db.latest_reading(resolve_scope(None))
+    # The roof unit's own latest, not a bench session's and not the simulator's.
+    # This used to scope to a running session, the same mistake home_readings() made
+    # — so the one number the whole screen is built around could come from a test
+    # someone started last week and forgot.
+    latest = db.latest_reading(source="device")
     if not latest:
         return {"ready": False, "message": "Not connected to your roof yet."}
 

@@ -41,7 +41,7 @@ def check(label: str, got, want) -> None:
         print(f"  FAIL {label}: got {got!r}, wanted {want!r}")
 
 
-def reading(ts: float, box3: float, session_id=None) -> None:
+def reading(ts: float, box3: float, session_id=None, source="device") -> None:
     db.insert_reading(
         roof={},
         inside={"box1": box3 + 6.0, "box3": box3},
@@ -52,6 +52,7 @@ def reading(ts: float, box3: float, session_id=None) -> None:
         session_id=session_id,
         ts=ts,
         sheet_out=True,
+        source=source,
     )
 
 
@@ -80,8 +81,23 @@ hottest = max(r["inside"]["box3"] for r in rows)
 check("nothing from the bench is charted", hottest < 30.0, True)
 
 print()
+print("a simulator run from ten minutes ago, inside the window")
+# simulate.py posts to the same endpoint the roof unit uses, so these land right
+# beside the real ones and well within twelve hours. Being recent is exactly why
+# the window alone cannot keep them off a resident's chart.
+for i in range(30):
+    reading(now - (10 - i * 0.3) * 60, 40.0 + (i % 3) * 0.5, source="sim")
+
+rows = main.home_readings()
+check("still only the roof unit's readings", len(rows), 40)
+check("the invented 40° is not charted",
+      max(r["inside"]["box3"] for r in rows) < 30.0, True)
+
+print()
 print("the chart and the dial cannot disagree")
-latest = db.latest_reading()
+# Device-only, which is what the dial itself reads. Comparing against an
+# unfiltered latest would assert the bug: it returns the simulator's row.
+latest = db.latest_reading(source="device")
 series_last = main.home_series()[-1]["inside_c"]
 check("same number on both", series_last, latest["inside"]["box3"])
 

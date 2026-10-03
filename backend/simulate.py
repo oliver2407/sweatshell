@@ -117,6 +117,11 @@ class Rig:
 
     def payload(self, ts: float | None = None) -> dict:
         return {
+            # Say so. These numbers are invented, they land in the same table as
+            # measured ones, and a 40° that nobody measured turning up on a
+            # resident's chart beside a 22° that a sensor did is how an afternoon
+            # gets spent looking for a hardware fault that was never there.
+            "source": "sim",
             "roof": {k: round(v, 2) for k, v in self.roof.items()},
             "inside": {k: round(v, 2) for k, v in self.inside.items()},
             "gel_mass_g": round(self.gel_mass, 1),

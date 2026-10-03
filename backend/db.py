@@ -77,6 +77,22 @@ def _migrate() -> None:
     cols = {r["name"] for r in _conn.execute("PRAGMA table_info(readings)")}
     if "sheet_out" not in cols:
         _conn.execute("ALTER TABLE readings ADD COLUMN sheet_out INTEGER")
+
+    # Where a reading came from. simulate.py posts to the same /api/reading the roof
+    # unit uses — which was the point, it proves the endpoint — but it meant a made-up
+    # 40° and a measured 22° sat in this table indistinguishable, and the app had no
+    # way to tell a chart of the house from a chart of the simulator.
+    if "source" not in cols:
+        _conn.execute("ALTER TABLE readings ADD COLUMN source TEXT")
+        # Rows that predate the column get classified by a tell: the simulator is the
+        # only writer that fills roof_json, because it models four bench boxes. The
+        # bridge has no roof probes and stores an empty object there.
+        _conn.execute(
+            """UPDATE readings SET source =
+                 CASE WHEN roof_json IS NULL OR roof_json IN ('', '{}')
+                      THEN 'device' ELSE 'sim' END
+               WHERE source IS NULL"""
+        )
     _conn.commit()
 
 
@@ -123,12 +139,13 @@ def insert_reading(
     session_id: int | None,
     ts: float | None = None,
     sheet_out: bool | None = None,
+    source: str = "device",
 ) -> int:
     cur = _conn.execute(
         """INSERT INTO readings
            (ts, session_id, roof_json, inside_json, gel_mass_g, ambient_c, humidity,
-            pump_on, sheet_out)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            pump_on, sheet_out, source)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             ts or time.time(),
             session_id,
@@ -139,6 +156,7 @@ def insert_reading(
             humidity,
             1 if pump_on else 0,
             None if sheet_out is None else (1 if sheet_out else 0),
+            source,
         ),
     )
     _conn.commit()
@@ -161,7 +179,9 @@ def _row_to_reading(row: sqlite3.Row) -> dict:
 
 
 @_locked
-def latest_reading(session_id: int | None = None) -> dict | None:
+def latest_reading(
+    session_id: int | None = None, source: str | None = None
+) -> dict | None:
     """
     The most recently *received* reading, by arrival rather than by timestamp.
 
@@ -176,8 +196,14 @@ def latest_reading(session_id: int | None = None) -> dict | None:
             "SELECT * FROM readings WHERE session_id = ? ORDER BY id DESC LIMIT 1",
             (session_id,),
         ).fetchone()
-    else:
+    elif source is None:
         row = _conn.execute("SELECT * FROM readings ORDER BY id DESC LIMIT 1").fetchone()
+    else:
+        row = _conn.execute(
+            """SELECT * FROM readings WHERE COALESCE(source, 'device') = ?
+               ORDER BY id DESC LIMIT 1""",
+            (source,),
+        ).fetchone()
     return _row_to_reading(row) if row else None
 
 
@@ -186,7 +212,9 @@ CLOCK_SKEW_S = 120.0
 
 
 @_locked
-def readings_since(seconds: float, session_id: int | None = None) -> list[dict]:
+def readings_since(
+    seconds: float, session_id: int | None = None, source: str | None = None
+) -> list[dict]:
     """
     A window of recent readings — bounded at both ends.
 
@@ -200,10 +228,17 @@ def readings_since(seconds: float, session_id: int | None = None) -> list[dict]:
         rows = _conn.execute(
             "SELECT * FROM readings WHERE session_id = ? ORDER BY ts ASC", (session_id,)
         ).fetchall()
-    else:
+    elif source is None:
         rows = _conn.execute(
             "SELECT * FROM readings WHERE ts >= ? AND ts <= ? ORDER BY ts ASC",
             (now - seconds, now + CLOCK_SKEW_S),
+        ).fetchall()
+    else:
+        rows = _conn.execute(
+            """SELECT * FROM readings
+               WHERE ts >= ? AND ts <= ? AND COALESCE(source, 'device') = ?
+               ORDER BY ts ASC""",
+            (now - seconds, now + CLOCK_SKEW_S, source),
         ).fetchall()
     return [_row_to_reading(r) for r in rows]
 
