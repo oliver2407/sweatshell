@@ -149,7 +149,13 @@ function DeviceThresholds({ device, busy, onPatch, onSetUrl }) {
       <div className="thrs">
         {field("hot", "Roll out above", s.hot, "°C outside")}
         {field("cool", "Roll up below", s.cool, "°C outside")}
-        {field("danger", "Only sweat above", s.danger, "°C")}
+        {/*
+          "Only sweat above X°C" used to sit here. Two thresholds about rolling plus
+          a third about sweating read as one setting too many, and the question it
+          raises — what counts as sweating, and why would I stop it — is exactly the
+          kind nobody is on hand to answer. The roof unit keeps using whatever value
+          it already holds; it is simply not edited from here.
+        */}
       </div>
 
       {/*
