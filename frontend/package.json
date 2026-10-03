@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "build:demo": "VITE_DEMO=1 vite build"
+    "build:demo": "VITE_DEMO=1 vite build",
+    "dev:demo": "VITE_DEMO=1 vite"
   },
   "dependencies": {
     "react": "^18.3.1",

@@ -107,8 +107,13 @@ move, the chart fills, the schedule editor edits. It is static hosting — nothi
 keep awake and nothing to reach.
 
 ```bash
-cd frontend && npm run build:demo     # dist/ is then a self-contained app
+cd frontend
+npm run dev:demo      # the demo, live-reloading, on localhost
+npm run build:demo    # dist/ is then a self-contained app
 ```
+
+`npm run dev` is the **live** app and has no demo badge in it at all — if you are
+looking for the badge and cannot find it, that is which script is running.
 
 Deploying it to Vercel, once:
 
