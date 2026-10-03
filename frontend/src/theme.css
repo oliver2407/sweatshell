@@ -91,6 +91,25 @@ body {
   letter-spacing: -0.01em;
 }
 
+/*
+ * Permanent, and loud enough to read without looking for it.
+ *
+ * It uses the warning colour rather than a quiet grey on purpose: this is the one
+ * label on the screen that changes what every other number means.
+ */
+.demo-badge {
+  flex: none;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 4px 9px;
+  border-radius: 999px;
+  color: #3a2400;
+  background: var(--warn);
+  white-space: nowrap;
+}
+
 .bar .when {
   font-size: 12px;
   color: var(--ink-faint);

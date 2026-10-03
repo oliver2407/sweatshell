@@ -95,6 +95,42 @@ frozen screen, which is worse than no demo.
 
 The laptop has to stay awake with that window open, and the URL changes every run.
 
+### A link that works without any of this
+
+`share.sh` needs the laptop awake and the tunnel open, which is right for a demo
+someone is standing next to and wrong for a link that has to work at midnight when a
+judge gets round to it.
+
+So the app also builds in **demo mode**: `frontend/src/demo.js` answers the same calls
+`api.js` makes, out of a model running in the page. Every button works, the numbers
+move, the chart fills, the schedule editor edits. It is static hosting — nothing to
+keep awake and nothing to reach.
+
+```bash
+cd frontend && npm run build:demo     # dist/ is then a self-contained app
+```
+
+Deploying it to Vercel, once:
+
+1. **Add New → Project**, import the repository.
+2. **Root Directory: `frontend`** — this is the only setting that matters, and the
+   only one people get wrong. Vercel otherwise looks at the repo root, finds no
+   `package.json`, and fails.
+3. Leave everything else alone. `frontend/vercel.json` already sets the demo build
+   and the single-page rewrite.
+4. Deploy. Every push to `main` redeploys.
+
+The numbers are invented and the app says so: a **DEMO DATA** badge sits in the header
+on every screen with no way to dismiss it. That is not optional politeness — anyone who
+presses a button twice and sees the same thing happen works it out anyway, at a worse
+moment.
+
+**This cannot be deployed with live data, by any host.** The roof unit sits on a phone
+hotspot with a private address; no server on the internet has a route to it. Reaching
+a real sensor from a hosted app would mean inverting the firmware so the device pushes
+outward — `/api/reading` and `/api/sheet/command` are still there for exactly that —
+and a host that runs a process continuously, which Vercel does not.
+
 ### Without the hardware
 
 `backend/fake_esp.py` serves the firmware's own JSON shape on a local port, so the
@@ -183,7 +219,10 @@ backend/
   fake_esp.py      stand-in for the roof unit, speaking its exact JSON
   simulate.py      invented data for a dead bench, tagged "sim"
   find_device.py   finds the roof unit on the local subnets
-frontend/          React, hand-drawn SVG charts, no chart library
+frontend/
+  src/api.js       every call the app makes, live or demo
+  src/demo.js      the model that answers them when there is no backend
+                   React, hand-drawn SVG charts, no chart library
 firmware/          Arduino sketches for the ESP32
 tests/             schedule logic, device settings, the home window, db concurrency
 share.sh           puts the live rig on a public URL

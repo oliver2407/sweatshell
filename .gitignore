@@ -12,6 +12,8 @@ forecast_cache.json
 # node
 node_modules/
 dist/
+dist-demo/
+.vercel/
 
 # editors / os
 .DS_Store

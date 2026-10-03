@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, clockOf, explain } from "./api.js";
+import { api, clockOf, explain, DEMO } from "./api.js";
 import ControlTab from "./components/ControlTab.jsx";
 import HistoryTab from "./components/HistoryTab.jsx";
 import AutoTab from "./components/AutoTab.jsx";
@@ -177,6 +177,13 @@ export default function App() {
       <header className="bar">
         <span className="brand">SweatShell</span>
         <span className="where">Your roof</span>
+        {/*
+          Says so on every screen, permanently, with no way to dismiss it. A demo
+          that cannot be told apart from a measurement is a lie with a progress bar —
+          and anyone who presses a button twice and sees the same thing happen will
+          work it out anyway, at a worse moment.
+        */}
+        {DEMO && <span className="demo-badge">Demo data</span>}
         <span className="when">
           {offline ? "Offline" : home.ready ? clockOf(home.ts) : ""}
         </span>

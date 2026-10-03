@@ -10,7 +10,20 @@
  * on patchy mobile data is a dead screen.
  */
 
+import { demoApi } from "./demo.js";
+
 const BASE = import.meta.env.VITE_API_BASE ?? "";
+
+/*
+ * Built with VITE_DEMO=1, every call below is answered by a model running in the
+ * page instead of by a backend. That is the only way a hosted copy of this app can
+ * work: the roof unit sits on a phone hotspot with a private address, and nothing on
+ * the internet has a route to it.
+ *
+ * The switch is at build time, not runtime, so a demo build cannot quietly start
+ * talking to something real and a real build cannot quietly start making numbers up.
+ */
+export const DEMO = import.meta.env.VITE_DEMO === "1";
 
 async function req(path, options = {}) {
   const res = await fetch(BASE + path, {
@@ -45,7 +58,7 @@ export function explain(err) {
   return "The backend didn’t answer.";
 }
 
-export const api = {
+const liveApi = {
   home: () => req("/api/home"),
   series: () => req("/api/home/series"),
   water: () => req("/api/pump", { method: "POST" }),
@@ -76,6 +89,8 @@ export const api = {
   setBridge: (patch) =>
     req("/api/bridge", { method: "PATCH", body: JSON.stringify(patch) }),
 };
+
+export const api = DEMO ? demoApi : liveApi;
 
 export function fmt(n, digits = 1) {
   if (n === null || n === undefined || Number.isNaN(n)) return "—";
