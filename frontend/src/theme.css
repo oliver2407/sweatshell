@@ -70,12 +70,7 @@ body {
   background: linear-gradient(170deg, var(--field-top) 0%, var(--field-bottom) 78%);
 }
 
-@media (min-width: 480px) and (max-width: 899px) {
-  .shell {
-    border-left: 1px solid rgba(255, 255, 255, 0.07);
-    border-right: 1px solid rgba(255, 255, 255, 0.07);
-  }
-}
+
 
 
 
@@ -145,8 +140,9 @@ body {
   /* Opaque rather than translucent: it sits on top of the dial, and a see-through
      panel over a big numeral is unreadable. */
   background: #0a4f4b;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3);
+  /* Lifted off the field by its shadow rather than an outline — it is the one
+     thing on screen that sits above everything else, and a shadow says that. */
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.42);
   font-size: 13.5px;
   color: var(--ink-dim);
   line-height: 1.4;
@@ -335,7 +331,7 @@ body {
   min-height: 46px;
   color: var(--ink);
   background: rgba(0, 0, 0, 0.18);
-  border: 1px solid var(--panel-line);
+  border: none;
   border-radius: 11px;
 }
 
@@ -359,9 +355,7 @@ body {
 }
 
 .probes {
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid var(--panel-line);
+  margin-top: 18px;
 }
 
 .probe {
@@ -389,9 +383,7 @@ body {
 /* Tucked away while the unit is answering — it is the right thing to reach for
    when nothing works, and clutter the rest of the time. */
 .fold {
-  margin-top: 14px;
-  border-top: 1px solid var(--panel-line);
-  padding-top: 10px;
+  margin-top: 18px;
 }
 
 .fold > summary {
@@ -494,7 +486,7 @@ body {
   padding: 10px 12px;
   color: var(--ink);
   background: rgba(255, 255, 255, 0.07);
-  border: 1px solid var(--panel-line);
+  border: none;
   border-radius: 14px;
   cursor: pointer;
   transition: background 0.15s;
@@ -566,8 +558,8 @@ body {
   padding: 14px 40px;
   min-height: 50px;
   border-radius: 999px;
-  border: 1.5px solid var(--track);
-  background: none;
+  border: none;
+  background: rgba(255, 255, 255, 0.09);
   color: var(--ink);
   font: inherit;
   font-size: 15px;
@@ -578,7 +570,6 @@ body {
 
 .act.go {
   background: var(--gel);
-  border-color: var(--gel);
   color: #06302e;
   font-weight: 600;
 }
@@ -594,8 +585,7 @@ body {
   display: flex;
   flex: none;
   padding: 6px 8px calc(8px + env(safe-area-inset-bottom));
-  border-top: 1px solid var(--panel-line);
-  background: rgba(0, 0, 0, 0.14);
+  background: rgba(0, 0, 0, 0.2);
 }
 
 .tab {
@@ -643,12 +633,18 @@ body {
 
 /* --- panels on the inner tabs ----------------------------------------- */
 
+/*
+ * A surface, not a box. Every panel used to be outlined, every list row ruled and
+ * every column edged, and on a screen this calm the lines were the loudest thing
+ * on it — a drawing of structure laid over content that already had structure.
+ * The fill is lifted slightly to do the work the outline was doing, and
+ * everything else here is held apart by space.
+ */
 .panel {
   background: var(--panel);
-  border: 1px solid var(--panel-line);
   border-radius: 16px;
-  padding: 16px;
-  margin-top: 12px;
+  padding: 18px;
+  margin-top: 14px;
 }
 
 .panel h2 {
@@ -673,7 +669,7 @@ body {
 }
 
 .row + .row {
-  border-top: 1px solid var(--panel-line);
+  margin-top: 2px;
 }
 
 .row .lead {
@@ -744,15 +740,17 @@ body {
   font-size: 16px;
   color: var(--ink);
   background: rgba(0, 0, 0, 0.18);
-  border: 1px solid var(--panel-line);
+  border: none;
   border-radius: 12px;
 }
 
 /* --- schedule windows -------------------------------------------------- */
 
 .win {
-  padding: 14px 0 4px;
-  border-top: 1px solid var(--panel-line);
+  padding: 12px 8px;
+  margin-top: 10px;
+  border-radius: 13px;
+  background: rgba(0, 0, 0, 0.12);
 }
 
 .win.off {
@@ -780,13 +778,13 @@ body {
 .win-times input {
   width: 100%;
   min-width: 0;
-  padding: 10px 7px;
+  padding: 10px 5px;
   min-height: 46px;
   font: inherit;
   font-size: 14px;
   color: var(--ink);
   background: rgba(0, 0, 0, 0.18);
-  border: 1px solid var(--panel-line);
+  border: none;
   border-radius: 11px;
 }
 
@@ -865,8 +863,8 @@ body {
   flex: 1;
   min-height: 38px;
   border-radius: 10px;
-  border: 1px solid var(--track);
-  background: none;
+  border: none;
+  background: rgba(0, 0, 0, 0.16);
   color: var(--ink-dim);
   font: inherit;
   font-size: 13px;
@@ -876,7 +874,6 @@ body {
 
 .day[aria-pressed="true"] {
   background: var(--gel);
-  border-color: var(--gel);
   color: #06302e;
   font-weight: 600;
 }
@@ -943,7 +940,7 @@ body {
 }
 
 .win-group-end {
-  border-bottom: 1px solid var(--panel-line);
+  padding-bottom: 4px;
 }
 
 /* --- small button inside a panel -------------------------------------- */
@@ -955,8 +952,8 @@ body {
   padding: 10px 16px;
   min-height: 44px;
   border-radius: 12px;
-  border: 1px solid var(--track);
-  background: none;
+  border: none;
+  background: rgba(255, 255, 255, 0.09);
   color: var(--ink);
   cursor: pointer;
   flex: none;
@@ -998,7 +995,7 @@ body {
 }
 
 .care li + li {
-  border-top: 1px solid var(--panel-line);
+  margin-top: 2px;
 }
 
 .empty {
@@ -1054,7 +1051,9 @@ body {
      their own, and a fourth line crossing all of them boxed the header in as a
      separate region when it is meant to sit on the same open field. */
   .bar {
-    padding: 18px 28px 12px;
+    width: min(1340px, 100%);
+    margin: 0 auto;
+    padding: 20px 30px 10px;
     gap: 16px;
   }
 
@@ -1064,11 +1063,9 @@ body {
     font-size: 18px;
   }
 
-  /* A hairline between the name and the place stops two headings reading as one
-     run-on title. */
+  /* The two headings are kept apart by space and weight instead of a rule. */
   .bar .where {
     padding-left: 16px;
-    border-left: 1px solid var(--panel-line);
     font-size: 17px;
     font-weight: 500;
     color: var(--ink-dim);
@@ -1080,10 +1077,27 @@ body {
     min-height: 0;
   }
 
+  /*
+   * Centred, and bounded.
+   *
+   * It used to be three equal columns running wall to wall, which on a wide
+   * monitor stretched the supporting material out until the reading in the middle
+   * was just the middle of three equal blocks rather than the thing the screen is
+   * about. Now the composition has a width of its own and sits in the window, the
+   * centre column is the widest of the three, and the columns are held apart by a
+   * gap instead of a rule.
+   *
+   * The gap also removes a line nobody drew: three columns that clip their own
+   * scrolling, meeting on a fractional pixel, left a seam at each boundary that no
+   * CSS rule accounted for. Columns that do not touch cannot seam.
+   */
   .dash {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(360px, 1.1fr) minmax(0, 1fr);
-    gap: 0;
+    grid-template-columns: minmax(0, 0.92fr) minmax(380px, 1.2fr) minmax(0, 0.92fr);
+    gap: 30px;
+    width: min(1340px, 100%);
+    margin: 0 auto;
+    padding: 0 30px;
     height: 100%;
     min-height: 0;
   }
@@ -1095,14 +1109,13 @@ body {
     min-height: 0;
     overflow-y: auto;
     overscroll-behavior: contain;
-    padding: 18px 20px 24px;
+    padding: 14px 0 24px;
   }
 
-  /* Hairlines rather than gaps: with the columns scrolling independently, a gap
-     reads as a gutter that moves, and a rule reads as a boundary that does not. */
-  .dash-col + .dash-col {
-    border-left: 1px solid var(--panel-line);
-  }
+  /* No rules between the columns either. They were there because columns that
+     scroll independently make a gap look like a gutter that moves — but three
+     vertical lines across a screen this calm were the loudest thing on it, and
+     the panels inside each column already mark where one column ends. */
 
   .dash-col > .panel:first-child {
     margin-top: 0;
@@ -1183,7 +1196,6 @@ body {
    own — indented so the two read as one setting, not two. */
 .thr-sub {
   padding-left: 14px;
-  border-left: 2px solid var(--panel-line);
   margin: 2px 0 10px;
 }
 
@@ -1206,6 +1218,6 @@ body {
   text-align: right;
   color: var(--ink);
   background: rgba(0, 0, 0, 0.18);
-  border: 1px solid var(--panel-line);
+  border: none;
   border-radius: 11px;
 }
