@@ -1050,10 +1050,12 @@ body {
     border: none;
   }
 
+  /* No rule under the header. The three columns below already have hairlines of
+     their own, and a fourth line crossing all of them boxed the header in as a
+     separate region when it is meant to sit on the same open field. */
   .bar {
     padding: 18px 28px 12px;
     gap: 16px;
-    border-bottom: 1px solid var(--panel-line);
   }
 
   .bar .brand {
