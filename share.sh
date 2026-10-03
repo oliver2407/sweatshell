@@ -30,6 +30,20 @@ command -v cloudflared >/dev/null 2>&1 || fail \
 [ -f frontend/dist/index.html ] || fail \
   "The frontend is not built. Run: cd frontend && npm run build"
 
+# The demo bundle must never leave on a public link by accident. It has its own
+# output directory now, but a stale dist/ from before that split, or a stray
+# --outDir, would put invented numbers in front of judges while everyone involved
+# believed they were watching the rig. Cheap to check, expensive to miss.
+#
+# The marker is a string only the demo's JavaScript carries. Class names are no
+# good: the stylesheet is the same in both builds, so the first version of this
+# check matched "demo-badge" in the live CSS and refused every honest build.
+if grep -qs "Following the time of day" frontend/dist/assets/*.js 2>/dev/null; then
+  fail "frontend/dist holds a DEMO build — a tunnel would serve invented data as
+  if it were the rig. Rebuild the live one:
+    cd frontend && npm run build"
+fi
+
 if ! curl -fsS --max-time 4 http://127.0.0.1:8000/api/home >/dev/null 2>&1; then
   fail "Nothing is answering on port 8000. Start the backend first:
     cd backend && .venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000"

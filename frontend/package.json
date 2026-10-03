@@ -7,8 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "build:demo": "VITE_DEMO=1 vite build",
-    "dev:demo": "VITE_DEMO=1 vite"
+    "build:demo": "VITE_DEMO=1 vite build --outDir dist-demo",
+    "dev:demo": "VITE_DEMO=1 vite",
+    "preview:demo": "vite preview --outDir dist-demo --port 4174"
   },
   "dependencies": {
     "react": "^18.3.1",
