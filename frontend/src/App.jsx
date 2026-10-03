@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, clockOf, explain, DEMO } from "./api.js";
-import { demoWeather } from "./demo.js";
 import ControlTab from "./components/ControlTab.jsx";
 import HistoryTab from "./components/HistoryTab.jsx";
 import AutoTab from "./components/AutoTab.jsx";
@@ -61,75 +60,6 @@ function warnAdvice(w, auto, sheetOut) {
   return `Roll it up by ${hourOf(w.roll_up_by)} so it doesn’t tear.`;
 }
 
-/*
- * Hold the air outside, so Auto can be watched instead of described.
- *
- * The roof unit decides on the temperature outside — out above one threshold, up
- * below another. On a real roof that is hours of waiting, and in the demo it is the
- * same curve on a clock. Neither is something a visitor will sit through, so the one
- * input the whole automatic behaviour hangs on is the one input they can move.
- *
- * Demo builds only. There is nothing to hold on a real rig: that number comes from a
- * sensor, and a slider that pretended to change the weather would be lying about
- * which way the information flows.
- */
-function WeatherDial({ onClose }) {
-  const [held, setHeld] = useState(demoWeather.get());
-  const { hot, cool } = demoWeather.thresholds();
-  const value = held ?? demoWeather.current();
-
-  const apply = (c) => {
-    setHeld(c);
-    demoWeather.set(c);
-  };
-
-  return (
-    <div className="wx">
-      <div className="wx-head">
-        <span>Air outside</span>
-        <button className="wx-x" aria-label="Close" onClick={onClose}>
-          ×
-        </button>
-      </div>
-
-      <div className="wx-read">
-        {value.toFixed(1)}
-        <span className="wx-deg">°C</span>
-      </div>
-
-      <input
-        className="wx-slider"
-        type="range"
-        min="10"
-        max="45"
-        step="0.5"
-        value={value}
-        aria-label="Air outside"
-        onChange={(e) => apply(Number(e.target.value))}
-      />
-
-      {/* The two numbers that decide what happens, named rather than left to be
-          guessed from the behaviour. */}
-      <div className="wx-marks">
-        <span>Up below {cool}°</span>
-        <span>Out above {hot}°</span>
-      </div>
-
-      <p className="wx-note">
-        {held === null
-          ? "Following the time of day. Drag it past a threshold, then switch to Auto and watch the sheet move."
-          : "Held here. The roof unit is deciding on this number."}
-      </p>
-
-      {held !== null && (
-        <button className="wx-reset" onClick={() => apply(null)}>
-          Back to the time of day
-        </button>
-      )}
-    </div>
-  );
-}
-
 export default function App() {
   const [home, setHome] = useState(null);
   const [series, setSeries] = useState([]);
@@ -138,7 +68,6 @@ export default function App() {
   const [offline, setOffline] = useState(false);
   const [dismissed, setDismissed] = useState([]);
   const [failed, setFailed] = useState(null);
-  const [weather, setWeather] = useState(false);
   const wide = useIsWide();
 
   const tick = useRef(0);
@@ -254,21 +183,11 @@ export default function App() {
           and anyone who presses a button twice and sees the same thing happen will
           work it out anyway, at a worse moment.
         */}
-        {DEMO && (
-          <button
-            className="demo-badge"
-            aria-expanded={weather}
-            onClick={() => setWeather((w) => !w)}
-          >
-            Demo data
-          </button>
-        )}
+        {DEMO && <span className="demo-badge">Demo data</span>}
         <span className="when">
           {offline ? "Offline" : home.ready ? clockOf(home.ts) : ""}
         </span>
       </header>
-
-      {DEMO && weather && <WeatherDial onClose={() => setWeather(false)} />}
 
       {/*
         Alerts float over the content in one fixed spot rather than sitting in the
