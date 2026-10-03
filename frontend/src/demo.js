@@ -35,11 +35,31 @@ const now = () => Date.now() / 1000;
 // Outside air over a day: coolest before dawn, hottest mid-afternoon. A demo opened
 // at any hour should look like that hour rather than like noon.
 function outsideAt(ts) {
+  // Held, when someone is driving it by hand. Auto triggers on the air outside, and
+  // waiting for a real afternoon to cross 26 °C is not a demo anyone will sit
+  // through — so the one input the whole automatic behaviour hangs on is the one
+  // input a visitor can move.
+  if (override !== null) return override;
   const h = new Date(ts * 1000).getHours() + new Date(ts * 1000).getMinutes() / 60;
   // Peak at 15:00, trough at 05:00.
   const phase = Math.cos(((h - 15) / 24) * 2 * Math.PI);
   return 27.5 + 5.5 * phase;
 }
+
+let override = null;
+
+/* The outside-air control the demo build puts in the header. */
+export const demoWeather = {
+  /** Null while the clock is driving; a number while someone is holding it. */
+  get: () => override,
+  /** What the model is reporting right now, held or not. */
+  current: () => Math.round(outsideAt(now()) * 10) / 10,
+  set: (c) => {
+    override = c === null ? null : Math.max(5, Math.min(50, c));
+  },
+  /** The thresholds the roof unit is deciding on, so the control can mark them. */
+  thresholds: () => ({ hot: S.settings.hot, cool: S.settings.cool }),
+};
 
 const S = {
   t: now(),
