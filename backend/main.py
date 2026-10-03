@@ -754,16 +754,23 @@ HOME_WINDOW_S = 12 * 3600.0
 
 def home_readings() -> list[dict]:
     """
-    What the app charts and totals over.
+    What the app charts and totals over: always the last twelve hours.
 
-    A named session when one is running, because that is the bench's unit of work.
-    Otherwise the last twelve hours. Nobody living with a roof covering is going to
-    press "start a run" first, and without this fallback their chart stays empty
-    forever while the roof unit reports perfectly good data.
+    It used to prefer a running bench session, on the reasoning that a session is
+    the bench's unit of work. That was the wrong unit for this screen, and it broke
+    it in the worst way — silently and plausibly.
+
+    A session started weeks ago and never ended is still "running". The chart then
+    drew that session instead of today: a week-long span titled "last 185.1 hours",
+    flat at 38° from a rig baking in a test, while the dial beside it read 22.4°
+    from the roof unit that was answering right now. Two numbers, both labelled
+    inside, three degrees of winter apart. Nothing on screen could explain it,
+    because the two were not looking at the same days at all.
+
+    The bench's own view is /api/state and /api/series, which take a session_id and
+    are built for exactly this. Nobody living with a roof covering presses "start a
+    run" first, so this screen does not ask, and does not get hijacked by one.
     """
-    scope = resolve_scope(None)
-    if scope is not None:
-        return db.session_readings(scope)
     return db.readings_since(HOME_WINDOW_S)
 
 
