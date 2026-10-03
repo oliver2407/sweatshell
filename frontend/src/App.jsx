@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, clockOf, explain } from "./api.js";
 import ControlTab from "./components/ControlTab.jsx";
 import HistoryTab from "./components/HistoryTab.jsx";
@@ -16,6 +16,17 @@ import useIsWide from "./useIsWide.js";
  */
 
 const POLL_MS = 3000;
+
+/*
+ * The chart is refetched far less often than the reading.
+ *
+ * They used to arrive together every three seconds, and the chart is six times the
+ * size of everything else on the screen put together — 8.8 KB against 1.5 KB — for
+ * twelve hours of history that gains one point per poll. Over a public tunnel that
+ * was 85% of the bytes a watcher cost, spent redrawing a line that had not visibly
+ * moved. The number people are actually reading still updates every three seconds.
+ */
+const SERIES_EVERY = 10;
 
 const TABS = [
   { id: "control", label: "Control", Icon: Drop },
@@ -59,11 +70,19 @@ export default function App() {
   const [failed, setFailed] = useState(null);
   const wide = useIsWide();
 
+  const tick = useRef(0);
+
   const refresh = useCallback(async () => {
+    // The chart comes along on the first pass and every tenth after it.
+    const withSeries = tick.current % SERIES_EVERY === 0;
+    tick.current += 1;
     try {
-      const [h, s] = await Promise.all([api.home(), api.series()]);
+      const [h, s] = await Promise.all([
+        api.home(),
+        withSeries ? api.series() : Promise.resolve(null),
+      ]);
       setHome(h);
-      setSeries(s);
+      if (s) setSeries(s);
       setOffline(false);
     } catch {
       // Keep the last good screen rather than blanking it. On mobile data a missed
