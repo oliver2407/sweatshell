@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- A droplet on a roofline: the whole product in two shapes. -->
+  <rect width="32" height="32" rx="7" fill="#0c615c"/>
+  <path d="M6 20 L16 12 L26 20" fill="none" stroke="#7fe3d0" stroke-width="2.4"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M16 17c2.6 2.9 4 4.8 4 6.4a4 4 0 0 1-8 0c0-1.6 1.4-3.5 4-6.4z"
+        fill="#7fe3d0"/>
+</svg>

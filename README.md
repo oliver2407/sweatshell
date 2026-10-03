@@ -44,6 +44,37 @@ own; the backend does not. Without it you end up with a new page talking to an
 old API, buttons that do nothing, and no clue why. The app now says so when it
 happens, but not restarting beats being told.
 
+### Letting other people see it, live
+
+Judges are not on your hotspot and `172.20.10.x` means nothing to them. Nothing
+has to move: the roof unit stays where it is, this laptop stays on the hotspot
+polling it, and a tunnel gives the backend's one port a public HTTPS address.
+
+```bash
+cd frontend && npm run build    # the backend serves this at /
+./share.sh                      # prints a https://…trycloudflare.com link
+```
+
+Free, no account, no card. `cloudflared` is the only thing to install
+(`brew install cloudflared`). `share.sh` checks the three things that are wrong
+on the day — tunnel binary missing, frontend not built, backend not running —
+and tells you whether the roof unit is answering before anyone looks, because a
+tunnel to a backend that lost its device shows a frozen screen, which is worse
+than no demo.
+
+What the link costs you: the laptop has to stay awake, on the hotspot, with that
+window open. The URL is random and changes every run, so start it before anyone
+needs it. Everything is live — a judge pressing Roll up moves the real sheet.
+
+This works because the backend serves the built frontend itself, so one origin
+carries both the page and `/api`. Two origins would be two tunnels, two URLs to
+read out, and CORS between them.
+
+**If the venue has no usable network at all**, the fallback is the simulator:
+`cd backend && python simulate.py --fast` fills the charts with plausible data,
+and every reading it writes is tagged `sim` so it never mixes with measurements.
+Say out loud that it is simulated — the app will not say it for you.
+
 No hardware yet? The simulator posts to the same endpoints the ESP32 uses:
 
 ```bash

@@ -8,10 +8,13 @@ WebSockets, no MQTT, no broker to babysit at a hackathon.
 import csv
 import io
 import time
+from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 
@@ -1352,3 +1355,41 @@ def scale(q: ScaleQuery):
             "tank. Running it every summer day is not the proposal."
         ),
     }
+
+
+# --------------------------------------------------------------- the app itself
+#
+# One origin serves everything: /api from here, and the built frontend from
+# frontend/dist. In development the two run apart — Vite on 5173 proxying to 8000 —
+# which is fine on one laptop and useless the moment the demo has to leave it.
+#
+# A public tunnel exposes one port. Two origins would mean two tunnels, two URLs to
+# read out, and CORS between them; one origin means a judge opens a single link and
+# the app is simply there, polling a roof unit on a phone hotspot on the other side
+# of the room. Build the frontend first:
+#
+#     cd frontend && npm run build
+#
+# If dist is missing the API still runs and the root says so, rather than the server
+# refusing to start over a directory nobody needed in development.
+DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+
+
+@app.get("/", include_in_schema=False)
+def index():
+    page = DIST / "index.html"
+    if not page.exists():
+        return {
+            "app": "SweatShell",
+            "ui": "not built",
+            "fix": "cd frontend && npm run build",
+            "api": "/api/home",
+        }
+    return FileResponse(page)
+
+
+if DIST.is_dir():
+    # Mounted last so every /api route above wins; this only catches what is left.
+    # html=True serves index.html for unknown paths, which is what a single-page app
+    # needs when someone reloads on a route the server has never heard of.
+    app.mount("/", StaticFiles(directory=DIST, html=True), name="ui")
