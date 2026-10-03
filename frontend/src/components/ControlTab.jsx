@@ -84,35 +84,6 @@ function modeSentence(home) {
   return held ? `Held by you. Back on schedule at ${when}.` : `${verb} at ${when}.`;
 }
 
-/*
- * How much cooler the covered side is than the uncovered one.
- *
- * Two probes on the same roof, a metre apart, one under the sheet and one not. This
- * difference is the only direct evidence the product does anything, which makes it
- * the one number worth stating in words rather than leaving someone to subtract.
- *
- * Under half a degree it claims neither. A DS18B20 is accurate to about ±0.5 °C, so
- * a gap smaller than that is two sensors disagreeing, not a sheet working, and
- * printing "0.2° cooler" would be claiming a result the hardware cannot support.
- * A sheet that is losing says so too — the alternative is a readout that can only
- * ever flatter it.
- */
-const NOISE_C = 0.5;
-
-function Gap({ c }) {
-  if (c == null)
-    return <p className="gap gap-quiet">Only one indoor probe is reporting.</p>;
-  if (Math.abs(c) < NOISE_C)
-    return <p className="gap gap-quiet">Level with the uncovered roof.</p>;
-  const cooler = c > 0;
-  return (
-    <p className={cooler ? "gap gap-good" : "gap gap-bad"}>
-      <strong>{Math.abs(c).toFixed(1)}°</strong> {cooler ? "cooler" : "warmer"} than
-      the uncovered roof
-    </p>
-  );
-}
-
 export default function ControlTab({ home, busy, onMove, onMode, onWater, wide }) {
   const out = home.sheet_out;
   // Auto means the roof unit's own temperature thresholds are driving. Manual is
@@ -152,8 +123,6 @@ export default function ControlTab({ home, busy, onMove, onMode, onWater, wide }
       </p>
 
       <Dial home={home} size={wide ? 296 : 248} />
-
-      <Gap c={home.cooling_c} />
 
       {/*
         Said in words, from the device's report. This line is the answer to the
@@ -205,17 +174,7 @@ export default function ControlTab({ home, busy, onMove, onMode, onWater, wide }
           Humidity used to sit here and read "—%" on every rig we have, because the
           roof unit reports -1 for it: there is no DHT on the board. A permanent dash
           is not a reading, it is a column of doubt about every number beside it.
-
-          The uncovered side is here because the rig measures it and the screen was
-          throwing it away. It is the same roof, a metre over, with no sheet on it —
-          the only honest control this product has.
         */}
-        {home.inside_bare_c != null && (
-          <div className="fact">
-            <div className="v">{fmt(home.inside_bare_c, 1)}°</div>
-            <div className="k">Uncovered</div>
-          </div>
-        )}
         <div className="fact">
           <div className="v">{fmt(home.outside_c, 1)}°</div>
           <div className="k">Outside</div>

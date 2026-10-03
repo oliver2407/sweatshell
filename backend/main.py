@@ -875,21 +875,6 @@ def home():
         "ts": latest["ts"],
         "stale": stale,
         "inside_c": inside_c,
-        # The second indoor probe, and the gap between them.
-        #
-        # The rig carries two: one under the sheet and one on an uncovered stretch of
-        # the same roof. The difference between those two numbers is the only direct
-        # evidence this product does anything, and it was reaching the database and
-        # then stopping — the screen showed the covered side and the air outside, and
-        # left the comparison in a diagnostics panel nobody opens.
-        #
-        # Signed, not absolute. A sheet that is not helping should say so.
-        "inside_bare_c": latest["inside"].get("box1"),
-        "cooling_c": (
-            round(latest["inside"]["box1"] - inside_c, 2)
-            if latest["inside"].get("box1") is not None and inside_c is not None
-            else None
-        ),
         "inside_humidity": latest["humidity"],
         "outside_c": latest["ambient_c"],
         "water_pct": pct,
