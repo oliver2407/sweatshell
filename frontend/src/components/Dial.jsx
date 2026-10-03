@@ -84,7 +84,9 @@ export default function Dial({ home, size = 248 }) {
 
       <div className="dial-centre">
         <div className="reading">
-          {fmt(home.inside_c, 0)}
+          {/* One decimal. The sheet moves the indoor temperature by a degree or two
+              over hours, so a whole number hides most of what it does. */}
+          {fmt(home.inside_c, 1)}
           <span className="deg">°</span>
         </div>
         <div className="dial-sub">

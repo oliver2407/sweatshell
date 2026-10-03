@@ -625,6 +625,12 @@ class DeviceSettingsPatch(BaseModel):
     cool   roll up below this
     danger pump only when it is at least this warm
     dry    pump when the gel is below this percent
+
+    h1/h2/out are which DS18B20 on the bus is which. They are here because a
+    DS18B20's index comes from its ROM address, not the order the wires went in, so
+    "the indoor sensor" can silently be the bare control box — and the fix is one
+    request rather than a re-flash. The bridge checks the device's readback, so if
+    the firmware does not accept these the app says so instead of pretending.
     """
 
     hot: float | None = None
@@ -632,6 +638,9 @@ class DeviceSettingsPatch(BaseModel):
     danger: float | None = None
     dry: int | None = None
     hum: int | None = None
+    h1: int | None = None
+    h2: int | None = None
+    out: int | None = None
 
 
 @app.post("/api/mode")
@@ -897,10 +906,20 @@ def home_series(max_points: int = 160):
     readings = home_readings()
     if len(readings) > max_points:
         step = len(readings) // max_points + 1
-        readings = readings[::step]
+        thinned = readings[::step]
+        # Keep the newest reading whatever the stride lands on. Slicing alone drops
+        # up to step-1 rows off the end, so the chart's last point — the one labelled
+        # on the right-hand edge — could sit several minutes behind the number on the
+        # dial, for no reason anyone looking at the two could work out.
+        if thinned[-1] is not readings[-1]:
+            thinned.append(readings[-1])
+        readings = thinned
     return [
         {
             "ts": r["ts"],
+            # box3 is temps.house2 from the firmware: the house WITH the sheet, which
+            # is the same field the dial shows. The bare control box (box1) is never
+            # charted here — this screen is about the room someone lives in.
             "inside_c": r["inside"].get("box3"),
             "sheet_out": r["sheet_out"],
         }

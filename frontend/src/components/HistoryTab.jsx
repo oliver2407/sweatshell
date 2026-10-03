@@ -124,7 +124,10 @@ export default function HistoryTab({ series }) {
               fontSize="11"
               fill="var(--ink-faint)"
             >
-              {Math.round(v)}
+              {/* Whole degrees once the span is wide enough to tell them apart.
+                  Inside a 2° span every label rounded to the same number, so the
+                  axis read 28 / 28 / 28 against a line that was visibly climbing. */}
+              {geom.hi - geom.lo >= 5 ? Math.round(v) : v.toFixed(1)}
             </text>
           </g>
         ))}
@@ -144,7 +147,7 @@ export default function HistoryTab({ series }) {
           fontSize="12"
           fill="var(--ink)"
         >
-          {fmt(geom.last, 0)}°
+          {fmt(geom.last, 1)}°
         </text>
 
         <text x={PAD.left} y={height - 5} fontSize="11" fill="var(--ink-faint)">

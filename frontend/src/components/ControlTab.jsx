@@ -170,12 +170,13 @@ export default function ControlTab({ home, busy, onMove, onMode, onWater, wide }
       </div>
 
       <div className="facts">
+        {/*
+          Humidity used to sit here and read "—%" on every rig we have, because the
+          roof unit reports -1 for it: there is no DHT on the board. A permanent dash
+          is not a reading, it is a column of doubt about every number beside it.
+        */}
         <div className="fact">
-          <div className="v">{fmt(home.inside_humidity, 0)}%</div>
-          <div className="k">Humidity</div>
-        </div>
-        <div className="fact">
-          <div className="v">{fmt(home.outside_c, 0)}°</div>
+          <div className="v">{fmt(home.outside_c, 1)}°</div>
           <div className="k">Outside</div>
         </div>
         <div className="fact">

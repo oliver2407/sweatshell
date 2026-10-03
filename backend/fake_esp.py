@@ -54,6 +54,11 @@ SET_KEYS = {
     "danger": ("danger", float),
     "dry": ("dry_pct", int),
     "dry_pct": ("dry_pct", int),
+    # Which DS18B20 on the bus is which. Index comes from the ROM address, not the
+    # wiring order, so these have to be settable without opening the sketch.
+    "h1": ("h1", int),
+    "h2": ("h2", int),
+    "out": ("out", int),
 }
 
 
