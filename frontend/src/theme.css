@@ -406,6 +406,33 @@ body {
   content: "− ";
 }
 
+/* The product's whole claim, in one line, directly under the number it is about. */
+.gap {
+  margin: 10px 20px 0;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.4;
+  flex: none;
+  min-height: 20px; /* reserved, so crossing the noise floor never shifts the dial */
+}
+
+.gap strong {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.gap-good {
+  color: var(--good);
+}
+
+.gap-bad {
+  color: var(--warn);
+}
+
+.gap-quiet {
+  color: var(--ink-faint);
+}
+
 /* --- where the sheet is, and how to move it ---------------------------- */
 
 /*
