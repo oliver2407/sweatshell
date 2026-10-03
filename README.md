@@ -107,27 +107,8 @@ move, the chart fills, the schedule editor edits. It is static hosting — nothi
 keep awake and nothing to reach.
 
 ```bash
-cd frontend
-npm run dev:demo      # the demo, live-reloading, on :5173
-npm run build:demo    # a self-contained app in dist-demo/
+cd frontend && npm run build:demo     # dist/ is then a self-contained app
 ```
-
-Which script does what, because getting this wrong is quiet rather than loud:
-
-| Script | Data | Lands in | Who serves it |
-|---|---|---|---|
-| `npm run dev` | **live**, via the backend | — | :5173 |
-| `npm run build` | **live** | `dist/` | the backend, and `share.sh` |
-| `npm run dev:demo` | demo | — | :5173 |
-| `npm run build:demo` | demo | `dist-demo/` | Vercel |
-
-The two builds have separate directories on purpose. The backend serves
-`frontend/dist`, so a demo build landing there would let `share.sh` put invented
-numbers on a public link while everyone involved believed it was the rig.
-`share.sh` refuses to start if it finds a demo bundle in `dist/`.
-
-`npm run dev` has no demo badge in it at all — if you are looking for the badge and
-cannot find it, that is which script is running.
 
 Deploying it to Vercel, once:
 
